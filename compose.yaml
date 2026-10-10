@@ -1,0 +1,23 @@
+name: awentrace
+services:
+  dev:
+    build: .
+    container_name: awentrace-dev
+    init: true
+    working_dir: /workspace
+    ports:
+      - "127.0.0.1:5174:5174"
+    volumes:
+      - .:/workspace
+      - node-modules:/workspace/node_modules
+    environment:
+      PLAYWRIGHT_BROWSERS_PATH: /opt/playwright
+    command: sh -c "npm ci && npm run dev -- --port 5174 --strictPort"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5174').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+    stop_grace_period: 10s
+volumes:
+  node-modules:

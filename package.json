@@ -1,0 +1,43 @@
+{
+  "name": "awentrace",
+  "version": "0.1.0",
+  "description": "Framework-independent writing-process capture for browser textareas",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LingkKang/AwenTrace.git"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.check.json",
+    "dev": "vite --host 0.0.0.0",
+    "test:unit": "npm run build && node --test tests/core.test.mjs",
+    "test:browser": "playwright test",
+    "test": "npm run typecheck && npm run test:unit && npm run test:browser",
+    "prepack": "npm run build"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "@types/node": "26.6.5",
+    "typescript": "7.0.2",
+    "vite": "8.3.4"
+  }
+}
