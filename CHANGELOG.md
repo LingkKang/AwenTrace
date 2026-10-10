@@ -1,24 +1,14 @@
 # Changelog
 
-## Unreleased
-
-- Finalize recorder state before stop callbacks; resolve focus through shadow roots and generate session IDs on HTTP origins.
-- Document npm installation and include architecture documentation and declaration-map sources in the package.
-- Test the packed library in an independent consumer alongside lifecycle, HTTP and shadow-focus regressions.
-
-- Add recorder pause/resume within a session, with explicit boundaries and checkpoint reconciliation.
-- Simplify demo controls, counts and history; display the latest 200 records newest first while exporting the full chronological trace.
-- Disable mouse/pointer movement capture by default and in the demo.
-- Isolate library browser tests from the demo and cover demo controls, history and downloads through end-to-end tests.
-- Build the static demo with relative asset paths and verify project-subpath and domain-root hosting.
-- Separate Tests and Pages workflows; deploy the tested artifact from successful master runs.
-- Simplify the README and consolidate API details, event semantics and future work.
-
 ## 0.1.0
 
-- Framework-independent, zero-runtime-dependency TypeScript capture core for ASCII textarea writing.
-- Keyboard, text/selection, mouse/pointer, clipboard, scrolling, page lifecycle and research-marker records.
-- Original versioned session schema with exact text patches and explicit evidence/unsupported-input flags.
-- Deterministic text reconstruction, JSON/JSONL/CSV exports and idempotent recorder cleanup.
-- Browser demo with event inspection and text-history reconstruction.
-- Docker development environment and core/Chromium regression tests.
+- Framework-independent, zero-runtime-dependency TypeScript capture core for English/ASCII textarea writing.
+- Keyboard, text/selection, mouse/pointer, clipboard, scrolling, page lifecycle and application-marker records; mouse/pointer movement capture is disabled by default.
+- Versioned session schema with exact text patches, unsupported-input flags, deterministic reconstruction and JSON/JSONL/CSV exports.
+- Session pause/resume with explicit boundaries and checkpoint reconciliation; idempotent cleanup and completed snapshots in stop callbacks.
+- Focus tracking through shadow roots and automatic session IDs on HTTP origins.
+- Browser demo with session controls, character/word counts, text history, the latest 200 records shown newest first and full chronological exports.
+- Static demo builds for project subpaths and custom domains; separate Tests and Pages workflows deploy tested artifacts from successful master runs.
+- Docker development environment with TypeScript checks, unit tests, isolated library browser tests, demo end-to-end tests and static-hosting checks.
+- Independent npm package tests covering packed files, installation, ESM imports, TypeScript declarations and browser use.
+- npm installation instructions and consolidated API, event-format and roadmap documentation; architecture documentation and declaration-map sources included in the package.
