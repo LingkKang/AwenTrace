@@ -119,6 +119,8 @@ Capture is scoped to the supplied editor. Mouse/pointer releases and movements o
 
 `npm test` runs strict TypeScript checks, deterministic text reconstruction/export tests (including randomized ASCII edits), and real Chromium interaction tests. Browser coverage includes ordinary typing, actual clipboard shortcuts, selection, pointer events, unsupported-operation flags, capture isolation, lifecycle, exports and cleanup. Synthetic events are explicitly distinguished in tests for fallback paths.
 
+GitHub Actions runs the same checks on every push, pull request update and merge queue candidate, using Node 24 and Chromium on Ubuntu. Merging a pull request triggers another run through the resulting push. The workflow can also be started manually from the Actions tab. Failed browser tests retain screenshots and Playwright traces as a workflow artifact for 7 days. To reproduce CI in an isolated container, run `docker compose run --rm -e CI=true dev npm test`.
+
 See [architecture and event format](docs/architecture.md) for the schema and extension boundary. The demo includes an event inspector, JSON/JSONL/CSV downloads and an event-by-event text-history slider.
 
 ## License
