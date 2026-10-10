@@ -60,6 +60,8 @@ export function createTrace(options: TraceOptions): Recorder {
   let text = target.value;
   let lastSelection = selection();
   let stopped = false;
+  let paused = false;
+  let pausedAt = 0;
   let stopping = false;
   let pending: { sequence: number; text: string; selection: Selection; inputType: string; native: InputEvent } | null = null;
   let pendingTimer: number | undefined;
@@ -69,7 +71,7 @@ export function createTrace(options: TraceOptions): Recorder {
     catch { /* A host error handler must not interrupt input capture. */ }
   };
   function emit<K extends EventKind>(kind: K, payload: Payloads[K], native?: Event): number {
-    if (stopped) return events.length;
+    if (stopped || (paused && native)) return events.length;
     const sequence = events.length + 1;
     const event = freeze({ id: `${sessionId}:${sequence}`, sessionId, sequence, kind, payload,
       elapsedMs: perf.now() - started, wallTime: new Date().toISOString(),
@@ -97,7 +99,7 @@ export function createTrace(options: TraceOptions): Recorder {
   }
 
   function listen<T extends Event>(surface: EventTarget, type: string, handler: (event: T) => void) {
-    const fn = (event: Event) => { if (!stopped) handler(event as T); };
+    const fn = (event: Event) => { if (!stopped && !paused) handler(event as T); };
     surface.addEventListener(type, fn, { capture: true, passive: true });
     removers.push(() => surface.removeEventListener(type, fn, true));
   }
@@ -109,6 +111,7 @@ export function createTrace(options: TraceOptions): Recorder {
   const interruptKeys = () => { const keys = [...pressed.keys()]; pressed.clear(); return keys; };
 
   function select(trigger: string, native?: Event) {
+    if (stopped || paused) return;
     const current = selection();
     if (sameSelection(current, lastSelection)) return;
     const previous = lastSelection;
@@ -136,7 +139,7 @@ export function createTrace(options: TraceOptions): Recorder {
   }
 
   function sync(reason = 'host-request') {
-    if (stopped) return;
+    if (stopped || paused) return;
     if (target.value !== text) {
       pending = null;
       const evidence = editEvidence('external', null, false, null);
@@ -149,6 +152,26 @@ export function createTrace(options: TraceOptions): Recorder {
   const recorder: Recorder = {
     sessionId,
     get stopped() { return stopped; },
+    get paused() { return paused; },
+    pause() {
+      if (stopped || stopping || paused) return;
+      sync('pause');
+      if (stopped || stopping || paused) return;
+      paused = true;
+      pausedAt = perf.now();
+      win.clearTimeout(pendingTimer);
+      pending = null;
+      pointers.clear();
+      mouseButtons.clear();
+      emit('pause', { interruptedKeys: interruptKeys() });
+    },
+    resume() {
+      if (stopped || stopping || !paused) return;
+      const pausedMs = perf.now() - pausedAt;
+      paused = false;
+      emit('resume', { pausedMs });
+      sync('resume');
+    },
     get eventCount() { return events.length; },
     getTrace() { sync('export'); return trace(); },
     subscribe(listener) {
@@ -166,6 +189,7 @@ export function createTrace(options: TraceOptions): Recorder {
     stop() {
       if (!stopped && !stopping) {
         stopping = true;
+        paused = false;
         sync('stop');
         emit('stop', { text, interruptedKeys: interruptKeys() });
         stopped = true;
@@ -241,7 +265,7 @@ export function createTrace(options: TraceOptions): Recorder {
       emit(kind, mouse(event), event);
       if (kind === 'mouseup') mouseButtons.delete(event.button);
       // Default mouse selection changes run after the capture listener.
-      queueMicrotask(() => { if (!stopped) select(kind); });
+      queueMicrotask(() => { if (!stopped && !paused) select(kind); });
     });
   }
   for (const kind of ['pointerdown', 'pointerup', 'pointermove', 'pointercancel'] as const) {

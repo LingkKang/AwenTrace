@@ -268,3 +268,56 @@ test('lifecycle, offline/online, resize and research markers share one sequence'
   expect(trace.events.some(e => e.kind === 'marker' && e.payload.name === 'feedback-shown')).toBe(true);
   expect(trace.stopped).toBe(true);
 });
+
+test('pause suppresses native capture and resumes the same trace with an explicit checkpoint', async ({ page }) => {
+  await page.keyboard.type('before');
+  await page.keyboard.down('Shift');
+  const before = await page.evaluate(() => {
+    window.awenTest.recorder.pause();
+    window.awenTest.recorder.pause();
+    return window.awenTest.recorder.getTrace();
+  });
+  expect(before.events.at(-1)?.kind).toBe('pause');
+  const pause = before.events.find(event => event.kind === 'pause')!;
+  expect(pause.payload.interruptedKeys).toContain('ShiftLeft:1');
+  await page.keyboard.up('Shift');
+  await page.locator('#writer').fill('unobserved');
+  await page.locator('#writer').click();
+  await page.setViewportSize({ width: 1000, height: 700 });
+  expect(await read(page)).toEqual(before);
+  const resumed = await page.evaluate(() => {
+    window.awenTest.recorder.resume();
+    window.awenTest.recorder.resume();
+    return window.awenTest.recorder.getTrace();
+  });
+  expect(resumed.header.sessionId).toBe(before.header.sessionId);
+  expect(resumed.events.filter(event => event.kind === 'resume')).toHaveLength(1);
+  const resume = resumed.events.find(event => event.kind === 'resume')!;
+  expect(resume.payload.pausedMs).toBeGreaterThanOrEqual(0);
+  expect(resumed.events.some(event => event.kind === 'checkpoint' && event.payload.reason === 'resume')).toBe(true);
+  await page.keyboard.type(' more');
+  const final = await page.evaluate(() => window.awenTest.recorder.stop());
+  expect(await page.evaluate(() => window.awenTest.reconstructText(window.awenTest.recorder.getTrace()))).toBe(final.finalText);
+  expect(final.finalText).toBe('unobserved more');
+  expect(final.events.some(event => event.kind === 'keyup' && event.payload.key === 'Shift')).toBe(false);
+});
+
+test('stop during pause reconciles text, detaches listeners and cannot be resumed', async ({ page }) => {
+  await page.keyboard.type('before');
+  const result = await page.evaluate(() => {
+    const recorder = window.awenTest.recorder;
+    recorder.pause();
+    document.querySelector<HTMLTextAreaElement>('#writer')!.value = 'external while paused';
+    const final = recorder.stop();
+    recorder.resume();
+    recorder.pause();
+    return { final, repeated: recorder.stop(), paused: recorder.paused,
+      reconstructed: window.awenTest.reconstructText(final) };
+  });
+  expect(result.final).toEqual(result.repeated);
+  expect(result.final.stopped).toBe(true);
+  expect(result.paused).toBe(false);
+  expect(result.reconstructed).toBe('external while paused');
+  await page.keyboard.type('ignored');
+  expect(await read(page)).toEqual(result.final);
+});

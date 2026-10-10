@@ -3,36 +3,48 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AwenTrace · Writing process recorder</title>
+    <title>AwenTrace · dev build</title>
   </head>
   <body>
     <main>
-      <header>
-        <h1>AwenTrace <small>0.1</small></h1>
-        <p>Record your writing process. English / ASCII only.</p>
-      </header>
-      <label for="writer">Your writing</label>
-      <textarea id="writer" name="writing" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Start a session, then write here…" readonly></textarea>
-      <div class="toolbar">
-        <div class="actions">
-          <button id="start">Start session</button>
-          <button id="stop" disabled>Finish</button>
+      <header><h1>AwenTrace <small>dev build</small></h1></header>
+      <section aria-labelledby="writing-heading">
+        <h2 id="writing-heading">Writing</h2>
+        <div class="toolbar">
+          <div class="actions">
+            <button id="start" title="Start a new recording session.">Start a session</button>
+            <button id="reset" title="Stop recording and clear all records, writing and session UI. Download first to keep your data.">Reset</button>
+          </div>
+          <span id="status" role="status" aria-label="Recording status">Ready</span>
         </div>
-        <span id="status" role="status">Ready</span>
-      </div>
-      <div class="export-row">
-        <span><span id="event-count">0</span> events recorded</span>
-        <div class="actions">
-          <label for="format">Export</label>
-          <select id="format">
-            <option value="json">JSON</option>
-            <option value="jsonl">JSONL</option>
-            <option value="csv">CSV</option>
-          </select>
-          <button id="download" disabled>Download</button>
+        <textarea id="writer" aria-labelledby="writing-heading" name="writing" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Start a session, then write here…" readonly></textarea>
+        <p id="text-count">0 characters · 0 words</p>
+      </section>
+      <section aria-labelledby="records-heading">
+        <div class="section-heading">
+          <h2 id="records-heading">Writing records</h2>
+          <div class="actions downloads">
+            <button id="json" aria-label="Download JSON" title="Download all records as JSON." disabled>JSON <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5" /></svg></button>
+            <button id="jsonl" aria-label="Download JSONL" title="Download all records as JSONL." disabled>JSONL <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5" /></svg></button>
+            <button id="csv" aria-label="Download CSV" title="Download all records as CSV." disabled>CSV <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5" /></svg></button>
+          </div>
         </div>
-      </div>
-      <p class="note">Saved in this page only. Download before starting a new session or leaving.</p>
+        <p class="note"><span id="event-count">0</span> events recorded · Latest 200 shown. Exports include all records.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Elapsed (ms)</th><th>Event</th><th>Selection</th><th>Detail</th></tr></thead>
+            <tbody id="events"><tr><td colspan="5" class="empty">No records yet.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+      <section aria-labelledby="history-heading">
+        <h2 id="history-heading">Writing history</h2>
+        <label for="replay">After event <output id="replay-index">0</output></label>
+        <input id="replay" type="range" min="0" max="0" value="0" disabled />
+        <pre id="replay-text" class="placeholder">(empty text)</pre>
+      </section>
+      <p class="note">Saved in this page only. Download before resetting or leaving.</p>
+      <footer>AwenTrace · <a href="https://github.com/LingkKang/AwenTrace" target="_blank" rel="noopener noreferrer">https://github.com/LingkKang/AwenTrace</a></footer>
     </main>
     <script type="module" src="/demo/main.ts"></script>
   </body>

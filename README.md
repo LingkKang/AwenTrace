@@ -73,8 +73,9 @@ For vanilla JS, omit the TypeScript generic and non-null assertion. The host can
 | `createTrace({ target, sessionId?, metadata?, capturePointerMoves?, onEvent?, onError? })` | Start a new recording. A second active recorder on the same textarea is rejected. |
 | `recorder.subscribe(listener)` | Receive future events; returns an unsubscribe function. |
 | `recorder.mark(name, data?)` | Add a research/task marker on the same timeline as input. |
-| `recorder.sync(reason?)` | Observe programmatic text changes and selection changes. |
-| `recorder.getTrace()` | Synchronize current text and return a detached snapshot. Does not stop recording. |
+| `recorder.sync(reason?)` | Observe programmatic text changes and selection changes; does nothing while paused. |
+| `recorder.getTrace()` | Return a detached snapshot, synchronizing current text unless paused. Does not stop recording. |
+| `recorder.pause()`, `recorder.resume()`, `recorder.paused` | Suspend/resume native capture within the same session; retain the timeline and existing records. |
 | `recorder.stop()` | Synchronize, record final text, detach listeners, return a snapshot. |
 | `recorder.eventCount`, `recorder.sessionId`, `recorder.stopped` | Current recorder status. |
 | `reconstructText(trace)` | Validate ordering, session IDs, revisions and text patches, then reconstruct final text. |
@@ -123,12 +124,12 @@ GitHub Actions runs the same checks on every push, pull request update and merge
 
 Browser tests are split into two Playwright projects:
 
-- `library`: 20 capture/lifecycle tests against `tests/browser/fixtures/editor.html`, a standalone textarea fixture with a test-only API bridge. These tests do not load the demo.
-- `demo`: 2 end-to-end tests using visible controls and downloaded files to verify session start/finish/restart and JSON/JSONL/CSV exports. The demo exposes no test globals.
+- `library`: capture/lifecycle tests against `tests/browser/fixtures/editor.html`, a standalone textarea fixture with a test-only API bridge. These tests do not load the demo.
+- `demo`: 2 end-to-end tests using visible controls and downloaded files to verify session start/pause/resume/reset, counts/history and complete JSON/JSONL/CSV exports. The demo exposes no test globals.
 
 Run either suite with `npm run test:browser -- --project=library` or `npm run test:browser -- --project=demo`. The default `npm test` runs both.
 
-See [architecture and event format](docs/architecture.md) for the schema and extension boundary. The demo provides a writing area, session controls, an event count and JSON/JSONL/CSV downloads.
+See [architecture and event format](docs/architecture.md) for the schema and extension boundary. The demo provides a writing area, start/pause/resume/reset controls, character and whitespace-separated word counts, the latest 200 detailed records, text history and JSON/JSONL/CSV downloads. Pausing locks the demo editor and preserves the session. Reset discards the session and clears the UI; download first to keep its data.
 
 ## License
 

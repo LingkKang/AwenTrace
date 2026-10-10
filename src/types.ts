@@ -95,6 +95,8 @@ export interface ClipboardEvidence {
 export interface Payloads {
   start: { text: string; selection: Selection };
   stop: { text: string; interruptedKeys: string[] };
+  pause: { interruptedKeys: string[] };
+  resume: { pausedMs: number };
   keydown: KeyboardEvidence;
   keyup: KeyboardEvidence;
   beforeinput: { inputType: string; data: string | null; composing: boolean; selection: Selection };
@@ -196,7 +198,12 @@ export interface TraceOptions {
 export interface Recorder {
   readonly sessionId: string;
   readonly stopped: boolean;
+  readonly paused: boolean;
   readonly eventCount: number;
+  /** Suspend native event capture without ending this session. */
+  pause(): void;
+  /** Resume capture; any unobserved text change becomes a checkpoint. */
+  resume(): void;
   getTrace(): Trace;
   subscribe(listener: (event: TraceEvent) => void): () => void;
   mark(name: string, data?: Json): void;

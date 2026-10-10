@@ -59,6 +59,14 @@ Clipboard events describe what the page can observe. Copy/cut selected text is a
 
 All listeners are passive observers and never call `preventDefault()`. The host controls editing policy. A textarea gets at most one active recorder; `stop()` detaches every listener and is idempotent. Event subscribers receive frozen events; exports return detached copies. Hosts must stop before removing/unmounting an editor.
 
+## Manual capture suspension
+
+`pause()` and `resume()` preserve the recorder session and event sequence. Native events and automatic synchronization are suspended while paused; exports retain the last captured text. A `pause` record reports interrupted keys, and `resume` records the elapsed suspension in `pausedMs`. The timeline includes this gap; manual suspension is distinct from a writing pause inferred by an analyzer. Repeated pause/resume calls are idempotent.
+
+The library does not lock the editor. If its text changes while capture is suspended, resuming records the observed net change as a checkpoint with reason `resume`; intermediate changes cannot be recovered. Stopping while paused also reconciles the final text before detaching listeners. Explicit host markers remain permitted during suspension.
+
+The demo sets its textarea to read-only while paused, keeps all existing records, and resumes the same recorder. Reset stops and discards that recorder and clears all demo state. Its test-only bridge remains confined to the independent library fixture.
+
 ## Persistence and future analysis
 
 v0.1 intentionally retains events in memory, including full raw movement streams by default. A host may subscribe and queue data for IndexedDB or a server. Persist the session header as well as events, acknowledge events by stable ID, and retain ordering. This release does not provide that transport or durability layer. Snapshotting the complete trace on each key is discouraged.

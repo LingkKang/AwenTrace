@@ -7,20 +7,20 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; }
-main { max-width: 800px; margin: 0 auto; padding: 56px 24px; }
-header { margin-bottom: 32px; }
+main { max-width: 1040px; margin: 0 auto; padding: 36px 24px; }
+header { margin-bottom: 24px; }
 h1 { margin: 0; font-size: 30px; font-weight: 650; letter-spacing: -1px; }
-h1 small { font-size: 13px; font-weight: 400; color: #68766b; letter-spacing: 0; }
-header p, .note { color: #5d6d61; line-height: 1.6; }
-header p { margin: 10px 0 0; font-size: 15px; }
-label { font-size: 13px; }
-textarea {
-  display: block; width: 100%; min-height: 300px; margin-top: 10px; padding: 20px;
-  resize: vertical; border: 1px solid #cbd4c7; border-radius: 8px;
+h1 small { margin-left: 8px; font-size: 13px; font-weight: 400; color: #68766b; letter-spacing: 0; }
+h2 { margin: 0; font-size: 24px; font-weight: 550; }
+label { font-size: 12px; }
+textarea, #replay-text {
+  width: 100%; padding: 20px; border: 1px solid #cbd4c7; border-radius: 8px;
   background: #fffefa; color: inherit; font: 18px/1.7 Georgia, serif;
 }
-textarea::placeholder { color: #788577; }
-button, select {
+textarea { display: block; min-height: 260px; margin-top: 10px; resize: vertical; }
+textarea::placeholder, #replay-text.placeholder { color: #788577; opacity: 1; }
+#replay-text { min-height: 90px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 12px 0 0; }
+button {
   border: 1px solid #bcc8b9; border-radius: 6px; padding: 9px 12px;
   background: #fffefa; color: inherit; font: inherit; font-size: 13px;
 }
@@ -29,17 +29,31 @@ button:hover:not(:disabled) { background: #e5ebdf; }
 button:disabled { opacity: .45; cursor: default; }
 #start { background: #294b39; border-color: #294b39; color: white; }
 #start:hover:not(:disabled) { background: #365e49; }
-button:focus-visible, select:focus-visible, textarea:focus-visible {
+button:focus-visible, textarea:focus-visible, input:focus-visible, a:focus-visible {
   outline: 3px solid #809564; outline-offset: 3px;
 }
-.toolbar, .export-row, .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.toolbar, .export-row { justify-content: space-between; margin-top: 18px; }
-.export-row { border-top: 1px solid #d8dfd3; padding-top: 18px; }
-#status, .export-row > span, .note { font-size: 12px; }
-#event-count { font-variant-numeric: tabular-nums; }
-.note { margin: 20px 0 0; }
+.toolbar, .section-heading, .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toolbar, .section-heading { justify-content: space-between; }
+.toolbar { margin: 18px 0 14px; }
+.downloads button { display: inline-flex; align-items: center; gap: 7px; }
+.downloads svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+#replay-text.placeholder { font-style: italic; }
+#status, #text-count, .note, footer { font-size: 12px; color: #5d6d61; line-height: 1.6; }
+#text-count { margin: 8px 0 0; }
+section { margin-top: 28px; }
+.note { margin: 12px 0; }
+.table-wrap { overflow: auto; max-height: 300px; border: 1px solid #cbd4c7; border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; text-align: left; font-size: 11px; font-variant-numeric: tabular-nums; }
+th { position: sticky; top: 0; background: #e8ecdf; white-space: nowrap; }
+th, td { padding: 10px 12px; }
+td { border-top: 1px solid #dde3d7; vertical-align: top; }
+td:last-child { font-family: ui-monospace, monospace; overflow-wrap: anywhere; min-width: 180px; max-width: 480px; }
+td.empty { text-align: center; color: #788577; padding: 24px; font-family: inherit; }
+#history-heading { margin-bottom: 12px; }
+#replay { display: block; width: 100%; margin: 12px 0; accent-color: #294b39; }
+footer { text-align: center; overflow-wrap: anywhere; border-top: 1px solid #d8dfd3; margin-top: 24px; padding-top: 16px; }
+a { color: inherit; text-underline-offset: 3px; }
 @media (max-width: 520px) {
-  main { padding: 28px 18px; }
-  header { margin-bottom: 24px; }
-  textarea { min-height: 260px; }
+  main { padding: 24px 16px; }
+  textarea { min-height: 220px; }
 }
