@@ -189,7 +189,7 @@ export interface TraceOptions {
   target: HTMLTextAreaElement;
   sessionId?: string;
   metadata?: Json;
-  /** True by default. No movement throttling is applied. */
+  /** False by default. Set true to capture mouse/pointer movement without throttling. */
   capturePointerMoves?: boolean;
   onEvent?: (event: TraceEvent) => void;
   onError?: (error: unknown) => void;

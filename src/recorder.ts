@@ -46,7 +46,7 @@ export function createTrace(options: TraceOptions): Recorder {
       visibility: doc.visibilityState, online: win.navigator.onLine, maxTouchPoints: win.navigator.maxTouchPoints },
     editor: { id: target.id, name: target.name, spellcheck: target.spellcheck,
       readOnly: target.readOnly, disabled: target.disabled },
-    initialText: target.value, initialSelection: selection(), capturePointerMoves: options.capturePointerMoves ?? true });
+    initialText: target.value, initialSelection: selection(), capturePointerMoves: options.capturePointerMoves ?? false });
   const events: TraceEvent[] = [];
   const listeners = new Set<(event: TraceEvent) => void>();
   const notifications: TraceEvent[] = [];

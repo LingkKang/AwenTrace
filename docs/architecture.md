@@ -69,7 +69,7 @@ The demo sets its textarea to read-only while paused, keeps all existing records
 
 ## Persistence and future analysis
 
-v0.1 intentionally retains events in memory, including full raw movement streams by default. A host may subscribe and queue data for IndexedDB or a server. Persist the session header as well as events, acknowledge events by stable ID, and retain ordering. This release does not provide that transport or durability layer. Snapshotting the complete trace on each key is discouraged.
+v0.1 intentionally retains events in memory. Mouse/pointer movement streams are disabled by default and in the demo; hosts may opt in with `capturePointerMoves: true`. A host may subscribe and queue data for IndexedDB or a server. Persist the session header as well as events, acknowledge events by stable ID, and retain ordering. This release does not provide that transport or durability layer. Snapshotting the complete trace on each key is discouraged.
 
 Future analyzers can derive inter-key intervals from selected keyboard timestamps, pauses from explicitly chosen thresholds and activity exclusions, and bursts from a declared segmentation rule. Those choices must be recorded with the analysis result. The core does not turn a raw time difference into a psychological pause or assume that adjacent input events are one word or burst.
 

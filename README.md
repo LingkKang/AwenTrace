@@ -99,7 +99,7 @@ Options `metadata` and marker `data` must be JSON-compatible. Event callbacks ar
 | Context | Browser/language/timezone/viewport/screen metadata, editor settings, initial and final text |
 | Research markers | Application-defined labels and JSON data |
 
-Mouse/pointer movement capture is enabled without throttling by default; set `capturePointerMoves: false` to omit both movement streams. Other pointer/mouse events remain enabled. A physical mouse action often produces both pointer and mouse events: these are distinct observations, **not two separate user actions**. Downstream analysis must choose or normalize a stream.
+Mouse/pointer movement capture is disabled by default; set `capturePointerMoves: true` to enable both movement streams without throttling. The demo keeps this option disabled. Other pointer/mouse events remain enabled. A physical mouse action often produces both pointer and mouse events: these are distinct observations, **not two separate user actions**. Downstream analysis must choose or normalize a stream.
 
 Capture is scoped to the supplied editor. Mouse/pointer releases and movements outside it are retained only while completing an interaction that started inside it. Unrelated fields, browser chrome, other sites and other applications are outside the scope. The library does not request clipboard permissions or read the system clipboard independently. For copy/cut, `textSource: 'selection'` describes selected text, not proof of what another handler ultimately wrote to the clipboard. For paste, text comes from the browser's clipboard event if exposed.
 

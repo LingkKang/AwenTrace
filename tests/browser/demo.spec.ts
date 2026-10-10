@@ -28,6 +28,9 @@ test('start, pause, resume and reset preserve or clear the appropriate state', a
   await expect(page.locator('#replay-text')).toHaveClass('placeholder');
   await expect(page.locator('#replay-text')).toHaveText('(empty text)');
   await page.getByRole('button', { name: 'Start a session', exact: true }).click();
+  await writer.click();
+  const bounds = (await writer.boundingBox())!;
+  await page.mouse.move(bounds.x + 30, bounds.y + 30, { steps: 4 });
   await writer.pressSequentially('One  two');
   await page.keyboard.press('Enter');
   await page.keyboard.insertText('three\tfour');
@@ -37,6 +40,9 @@ test('start, pause, resume and reset preserve or clear the appropriate state', a
   await expect(writer).toHaveJSProperty('readOnly', true);
   const paused: Trace = JSON.parse(await downloadText(page, 'json'));
   expect(paused.stopped).toBe(false);
+  expect(paused.header.capturePointerMoves).toBe(false);
+  expect(paused.events.some(event => event.kind === 'mousemove' || event.kind === 'pointermove')).toBe(false);
+  expect(paused.events.some(event => event.kind === 'click')).toBe(true);
   expect(paused.events.at(-1)?.kind).toBe('pause');
   await writer.click();
   await page.keyboard.type('ignored');

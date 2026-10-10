@@ -67,6 +67,7 @@ start.addEventListener('click', () => {
     writer.readOnly = false;
     recorder = createTrace({
       target: writer,
+      capturePointerMoves: false,
       metadata: { application: 'AwenTrace demo' },
       onEvent(event) { events.push(event); scheduleRender(); },
     });

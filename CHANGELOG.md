@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Disable mouse/pointer movement capture by default and explicitly keep it disabled in the demo.
+
 - Use relative demo asset paths and verify both project-subpath and custom-domain deployments.
 
 - Separate Tests and Pages workflows; deploy the exact artifact from a successful master test run.

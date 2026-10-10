@@ -85,7 +85,12 @@ test('non-text keys, modifiers, repeats and selection-only changes are retained'
   expect(trace.events.some(e => e.kind === 'selection' && e.payload.current.start !== e.payload.current.end)).toBe(true);
 });
 
-test('mouse and pointer coordinates, clicks, context menu, movement and wheel are captured', async ({ page }) => {
+test('mouse and pointer coordinates, clicks, context menu, opted-in movement and wheel are captured', async ({ page }) => {
+  await page.evaluate(() => {
+    window.awenTest.recorder.stop();
+    const target = document.querySelector<HTMLTextAreaElement>('#writer')!;
+    window.awenTest.recorder = window.awenTest.createTrace({ target, capturePointerMoves: true });
+  });
   const editor = page.locator('#writer');
   await editor.click(); await editor.dblclick(); await editor.click({ button: 'right' });
   await page.keyboard.press('Escape');
@@ -197,18 +202,30 @@ test('duplicate attachment and non-ASCII initial text are rejected', async ({ pa
   expect(result).toEqual({ duplicate: true, unicode: true });
 });
 
-test('movement can be disabled without losing clicks', async ({ page }) => {
-  await page.evaluate(() => {
-    window.awenTest.recorder.stop();
-    const target = document.querySelector<HTMLTextAreaElement>('#writer')!;
-    const recorder = window.awenTest.createTrace({ target, capturePointerMoves: false });
-    window.awenTest.recorder = recorder;
+for (const mode of ['default', 'explicit false'] as const) {
+  test(`movement is disabled with ${mode} without losing clicks or releases`, async ({ page }) => {
+    if (mode === 'explicit false') {
+      await page.evaluate(() => {
+        window.awenTest.recorder.stop();
+        const target = document.querySelector<HTMLTextAreaElement>('#writer')!;
+        window.awenTest.recorder = window.awenTest.createTrace({ target, capturePointerMoves: false });
+      });
+    }
+    const editor = page.locator('#writer');
+    await editor.click();
+    const box = (await editor.boundingBox())!;
+    await page.mouse.move(box.x + 20, box.y + 30, { steps: 4 });
+    await page.mouse.down();
+    await page.mouse.move(10, 10, { steps: 4 });
+    await page.mouse.up();
+    const trace = await read(page);
+    expect(trace.header.capturePointerMoves).toBe(false);
+    for (const kind of ['click', 'mousedown', 'mouseup', 'pointerdown', 'pointerup']) {
+      expect(trace.events.some(e => e.kind === kind), kind).toBe(true);
+    }
+    expect(trace.events.some(e => e.kind === 'pointermove' || e.kind === 'mousemove')).toBe(false);
   });
-  await page.locator('#writer').click();
-  const trace = await read(page);
-  expect(trace.events.some(e => e.kind === 'click')).toBe(true);
-  expect(trace.events.some(e => e.kind === 'pointermove' || e.kind === 'mousemove')).toBe(false);
-});
+}
 
 test('blur reports interrupted keys and never fabricates their release', async ({ page }) => {
   await page.keyboard.down('Shift');
