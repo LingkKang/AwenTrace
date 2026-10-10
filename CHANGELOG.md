@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Separate Tests and Pages workflows; deploy the exact artifact from a successful master test run.
+
 - Build and test the static demo at its project base path, then deploy passing master updates to GitHub Pages.
 
 - Decouple library browser tests from the demo with a minimal textarea fixture and separate Playwright projects.

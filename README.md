@@ -140,7 +140,9 @@ The demo is published at [lingkkang.github.io/AwenTrace](https://lingkkang.githu
 - `npm run preview:demo -- --host 0.0.0.0 --port 4174` previews that build at `http://localhost:4174/AwenTrace/` (publish the port separately if running inside Docker).
 - `npm run test:pages` builds the demo and runs its end-to-end tests against the static preview at the actual project base path.
 
-The Tests and Pages workflow runs `npm test` and `npm run test:pages`. Only successful pushes to `master`, or manual workflow runs on `master`, deploy the `demo-dist/` artifact. PRs and merge queue candidates are tested without deploying. Pages uses GitHub Actions as its publishing source and the `github-pages` environment. No custom domain is configured.
+Two independent workflows form the deployment pipeline. `Tests` (`.github/workflows/tests.yml`) runs `npm test` and `npm run test:pages` on pushes, PR updates, merge queue candidates and manual runs. Successful pushes to `master` (including merged PRs), or manual Tests runs on `master`, save the tested demo as a commit-named artifact.
+
+`Pages` (`.github/workflows/pages.yml`) listens for completed `Tests` runs on `master` and deploys only if the originating run succeeded and came from this repository's push or manual event. It downloads the artifact by the originating run ID and commit SHA, then publishes those exact static files without checking out or rebuilding newer code. Failed or cancelled tests and PR/merge queue runs never deploy. To retry testing and deployment, rerun `Tests`; Pages has no standalone manual trigger that bypasses testing. Pages uses the `github-pages` environment. No custom domain is configured.
 
 Generated site files are ignored by Git and excluded from Docker's build context and the npm package. Only the static build is uploaded; the development server, test fixture and participant recordings are not deployed.
 
