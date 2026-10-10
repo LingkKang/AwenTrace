@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Display the latest demo writing records first while preserving chronological exports and text history.
+
 - Disable mouse/pointer movement capture by default and explicitly keep it disabled in the demo.
 
 - Use relative demo asset paths and verify both project-subpath and custom-domain deployments.

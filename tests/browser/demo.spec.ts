@@ -96,7 +96,8 @@ test('latest 200 records, text history and downloads retain the complete paused 
   expect(reconstructText(trace)).toBe(text);
   expect(trace.events.length).toBeGreaterThan(200);
   await expect(page.locator('#events tr')).toHaveCount(200);
-  await expect(page.locator('#events tr').first().locator('td').first()).toHaveText(String(trace.events.length - 199));
+  await expect(page.locator('#events tr').first().locator('td').first()).toHaveText(String(trace.events.length));
+  await expect(page.locator('#events tr').last().locator('td').first()).toHaveText(String(trace.events.length - 199));
   await expect(page.locator('#event-count')).toHaveText(String(trace.events.length));
   await expect(page.locator('#text-count')).toHaveText('250 characters · 50 words');
   await expect(page.locator('#replay-text')).toHaveText(text);

@@ -41,7 +41,7 @@ function render() {
     const cell = row.insertCell();
     cell.colSpan = 5; cell.className = 'empty'; cell.textContent = 'No records yet.';
   } else {
-    for (const event of events.slice(-200)) {
+    for (const event of events.slice(-200).reverse()) {
       const row = rows.insertRow();
       for (const value of [String(event.sequence), event.elapsedMs.toFixed(2), event.kind,
         `${event.state.selection.start}–${event.state.selection.end}`, JSON.stringify(event.payload)]) {

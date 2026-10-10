@@ -129,7 +129,7 @@ Browser tests are split into two Playwright projects:
 
 Run either suite with `npm run test:browser -- --project=library` or `npm run test:browser -- --project=demo`. The default `npm test` runs both.
 
-See [architecture and event format](docs/architecture.md) for the schema and extension boundary. The demo provides a writing area, start/pause/resume/reset controls, character and whitespace-separated word counts, the latest 200 detailed records, text history and JSON/JSONL/CSV downloads. Pausing locks the demo editor and preserves the session. Reset discards the session and clears the UI; download first to keep its data.
+See [architecture and event format](docs/architecture.md) for the schema and extension boundary. The demo provides a writing area, start/pause/resume/reset controls, character and whitespace-separated word counts, the latest 200 detailed records (newest first), text history and JSON/JSONL/CSV downloads. Pausing locks the demo editor and preserves the session. Reset discards the session and clears the UI; download first to keep its data.
 
 ## Hosted demo
 
