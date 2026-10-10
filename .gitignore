@@ -10,3 +10,4 @@ playwright-report/
 coverage/
 .env.*
 !.env.example
+demo-dist/

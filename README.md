@@ -131,6 +131,20 @@ Run either suite with `npm run test:browser -- --project=library` or `npm run te
 
 See [architecture and event format](docs/architecture.md) for the schema and extension boundary. The demo provides a writing area, start/pause/resume/reset controls, character and whitespace-separated word counts, the latest 200 detailed records, text history and JSON/JSONL/CSV downloads. Pausing locks the demo editor and preserves the session. Reset discards the session and clears the UI; download first to keep its data.
 
+## Hosted demo
+
+The demo is published at [lingkkang.github.io/AwenTrace](https://lingkkang.github.io/AwenTrace/).
+
+- `npm run build` builds only the library into `dist/`.
+- `npm run build:demo` builds the static demo into `demo-dist/`, with the `/AwenTrace/` base path configured in `vite.demo.config.ts`.
+- `npm run preview:demo -- --host 0.0.0.0 --port 4174` previews that build at `http://localhost:4174/AwenTrace/` (publish the port separately if running inside Docker).
+- `npm run test:pages` builds the demo and runs its end-to-end tests against the static preview at the actual project base path.
+
+The Tests and Pages workflow runs `npm test` and `npm run test:pages`. Only successful pushes to `master`, or manual workflow runs on `master`, deploy the `demo-dist/` artifact. PRs and merge queue candidates are tested without deploying. Pages uses GitHub Actions as its publishing source and the `github-pages` environment. No custom domain is configured.
+
+Generated site files are ignored by Git and excluded from Docker's build context and the npm package. Only the static build is uploaded; the development server, test fixture and participant recordings are not deployed.
+
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

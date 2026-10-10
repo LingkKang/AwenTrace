@@ -16,7 +16,7 @@ async function downloadText(page: Page, format: string) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-test.beforeEach(async ({ page }) => { await page.goto('/'); });
+test.beforeEach(async ({ page }) => { await page.goto('./'); });
 
 test('start, pause, resume and reset preserve or clear the appropriate state', async ({ page }, testInfo) => {
   const writer = page.getByRole('textbox', { name: 'Writing', exact: true });

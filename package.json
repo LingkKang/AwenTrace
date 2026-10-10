@@ -24,6 +24,9 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:demo": "vite build --config vite.demo.config.ts",
+    "preview:demo": "vite preview --config vite.demo.config.ts",
+    "test:pages": "npm run build:demo && playwright test --config playwright.pages.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.check.json",
     "dev": "vite --host 0.0.0.0",
     "test:unit": "npm run build && node --test tests/core.test.mjs",

@@ -1,4 +1,4 @@
-name: Tests
+name: Tests and Pages
 
 on:
   push:
@@ -38,6 +38,9 @@ jobs:
       - name: Run all checks and tests
         run: npm test
 
+      - name: Build and test the Pages demo
+        run: npm run test:pages
+
       - name: Upload browser failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
@@ -46,3 +49,33 @@ jobs:
           path: test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Upload Pages site
+        if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: demo-dist/
+
+  deploy:
+    name: Deploy demo to GitHub Pages
+    needs: tests
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Deploy site
+        id: deployment
+        uses: actions/deploy-pages@v4

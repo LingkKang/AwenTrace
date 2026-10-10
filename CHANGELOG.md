@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Build and test the static demo at its project base path, then deploy passing master updates to GitHub Pages.
+
 - Decouple library browser tests from the demo with a minimal textarea fixture and separate Playwright projects.
 - Refine the development demo with start/pause/resume/reset, whitespace word counts, the latest 200 detailed records and placeholder-styled text history; remove promotional copy, the statistics sidebar and the test global.
 - Add manual recorder pause/resume with explicit timeline boundaries and checkpoint reconciliation.
