@@ -1,35 +1,45 @@
-:root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #24382f; background: #f4f5ef; font-synthesis: none; }
+:root {
+  color-scheme: light;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  color: #24382f;
+  background: #f4f5ef;
+  font-synthesis: none;
+}
 * { box-sizing: border-box; }
 body { margin: 0; }
-main { max-width: 1240px; margin: 0 auto; padding: 30px 46px; }
-header, .toolbar, .section-label, .trace-heading, .paper footer, dl div, .exports { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-header { border-bottom: 1px solid #d8dfd3; padding-bottom: 22px; }
-.brand { color: inherit; text-decoration: none; font-size: 25px; font-weight: 750; letter-spacing: -1px; }
-.brand span { font-weight: 400; }.brand small { font-size: 11px; margin-left: 10px; letter-spacing: 0; color: #748376; }
-.tag,.eyebrow,.section-label { font-size: 10px; letter-spacing: 1.8px; font-weight: 700; color: #697c6b; }
-.intro { padding: 48px 0 24px; max-width: 710px; }.eyebrow { margin: 0 0 16px; }
-h1 { font-family: Georgia, serif; font-size: clamp(34px,4vw,50px); line-height: 1.12; font-weight: 400; letter-spacing: -1.4px; margin: 0 0 20px; }
-.intro>p:last-child { line-height: 1.65; color: #647469; font-size: 15px; max-width: 610px; }
-button { border: 1px solid #c7d0c3; border-radius: 6px; background: transparent; color: #344c3e; padding: 10px 15px; font: inherit; font-size: 12px; cursor: pointer; }
-button:hover:not(:disabled) { background: #e4eade; }button:disabled { opacity: .45; cursor: default; }
-button:focus-visible,textarea:focus-visible,input:focus-visible { outline: 3px solid #9fac72; outline-offset: 3px; }
-#start { background: #294b39; border-color: #294b39; color: white; }.toolbar { justify-content: flex-start; padding: 10px 0 22px; }
-#status { margin-left: auto; font-size: 12px; color: #5a7055; }
-.workspace { display: grid; grid-template-columns: 1fr 270px; gap: 24px; }
-.paper { background: #fffefa; border: 1px solid #d7ddcf; border-radius: 8px; box-shadow: 0 8px 30px #26372005; overflow: hidden; }
-.section-label { padding: 20px 22px; }.paper .section-label { border-bottom: 1px solid #e9ecdf; }
-textarea { width: 100%; height: 310px; display: block; resize: vertical; border: 0; background: transparent; padding: 24px; font: 18px/1.8 Georgia,serif; color: #263e30; }
-textarea::placeholder { color: #a0ab9c; }textarea:focus { outline-offset: -4px; }
-.paper footer { padding: 15px 22px; font-size: 11px; color: #85917d; border-top: 1px solid #e9ecdf; }
-aside { padding: 0 8px 0 12px; }aside .section-label { padding: 18px 0; }aside>strong { display:block; font-size: 52px; font-weight: 400; letter-spacing: -2px; }
-aside>p { font-size: 12px; color: #768571; margin-top: 0; }dl { margin: 25px 0; }dl div { padding: 9px 0; font-size: 12px; border-bottom: 1px solid #dfe5d7; }dd { font-variant-numeric: tabular-nums; }
-.note { font-size: 11px; line-height: 1.7; color: #7a8775; }.trace-section { margin-top: 44px; }
-h2 { font-family: Georgia,serif; font-size: 25px; font-weight: 400; margin: 0; }.trace-heading .eyebrow { margin-bottom: 8px; }
-.exports { gap: 7px; }.exports button { padding: 8px 12px; }.table-wrap { border: 1px solid #d7ddcf; border-radius: 7px; overflow: auto; max-height: 350px; margin-top: 18px; }
-table { border-collapse: collapse; width: 100%; font-size: 11px; text-align: left; font-variant-numeric: tabular-nums; }
-th { position: sticky; top: 0; background: #e9eddf; padding: 12px 14px; font-weight: 600; white-space: nowrap; }
-td { padding: 10px 14px; border-top: 1px solid #e2e7da; vertical-align: top; }td:last-child { font-family: ui-monospace,monospace; max-width: 450px; overflow-wrap: anywhere; }.empty { text-align: center; color: #89967f; padding: 35px; }
-#replay-section { margin-top: 32px; }#replay-section label { display: block; margin-top: 20px; font-size: 12px; }#replay { width: 100%; accent-color: #294b39; margin: 15px 0; }
-#verified { font-size: 12px; color: #61744d; }pre { background: #fffefa; border: 1px solid #d7ddcf; border-radius: 6px; padding: 22px; white-space: pre-wrap; overflow-wrap: anywhere; font: 16px/1.7 Georgia,serif; }
-.page-footer { margin-top: 40px; border-top: 1px solid #d8dfd3; padding: 20px 0; font-size: 10px; letter-spacing: .6px; color: #8a957f; }
-@media(max-width:760px) { main { padding: 20px; }.workspace { grid-template-columns: 1fr; }aside { padding: 0; }aside>strong { font-size: 38px; }.intro { padding-top: 32px; }.tag { display: none; }.toolbar { flex-wrap: wrap; }#status { margin-left: 0; }.trace-heading { flex-wrap: wrap; }textarea { height: 260px; } }
+main { max-width: 800px; margin: 0 auto; padding: 56px 24px; }
+header { margin-bottom: 32px; }
+h1 { margin: 0; font-size: 30px; font-weight: 650; letter-spacing: -1px; }
+h1 small { font-size: 13px; font-weight: 400; color: #68766b; letter-spacing: 0; }
+header p, .note { color: #5d6d61; line-height: 1.6; }
+header p { margin: 10px 0 0; font-size: 15px; }
+label { font-size: 13px; }
+textarea {
+  display: block; width: 100%; min-height: 300px; margin-top: 10px; padding: 20px;
+  resize: vertical; border: 1px solid #cbd4c7; border-radius: 8px;
+  background: #fffefa; color: inherit; font: 18px/1.7 Georgia, serif;
+}
+textarea::placeholder { color: #788577; }
+button, select {
+  border: 1px solid #bcc8b9; border-radius: 6px; padding: 9px 12px;
+  background: #fffefa; color: inherit; font: inherit; font-size: 13px;
+}
+button { cursor: pointer; }
+button:hover:not(:disabled) { background: #e5ebdf; }
+button:disabled { opacity: .45; cursor: default; }
+#start { background: #294b39; border-color: #294b39; color: white; }
+#start:hover:not(:disabled) { background: #365e49; }
+button:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid #809564; outline-offset: 3px;
+}
+.toolbar, .export-row, .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toolbar, .export-row { justify-content: space-between; margin-top: 18px; }
+.export-row { border-top: 1px solid #d8dfd3; padding-top: 18px; }
+#status, .export-row > span, .note { font-size: 12px; }
+#event-count { font-variant-numeric: tabular-nums; }
+.note { margin: 20px 0 0; }
+@media (max-width: 520px) {
+  main { padding: 28px 18px; }
+  header { margin-bottom: 24px; }
+  textarea { min-height: 260px; }
+}

@@ -6,6 +6,34 @@
     <title>AwenTrace · Writing process recorder</title>
   </head>
   <body>
+    <main>
+      <header>
+        <h1>AwenTrace <small>0.1</small></h1>
+        <p>Record your writing process. English / ASCII only.</p>
+      </header>
+      <label for="writer">Your writing</label>
+      <textarea id="writer" name="writing" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Start a session, then write here…" readonly></textarea>
+      <div class="toolbar">
+        <div class="actions">
+          <button id="start">Start session</button>
+          <button id="stop" disabled>Finish</button>
+        </div>
+        <span id="status" role="status">Ready</span>
+      </div>
+      <div class="export-row">
+        <span><span id="event-count">0</span> events recorded</span>
+        <div class="actions">
+          <label for="format">Export</label>
+          <select id="format">
+            <option value="json">JSON</option>
+            <option value="jsonl">JSONL</option>
+            <option value="csv">CSV</option>
+          </select>
+          <button id="download" disabled>Download</button>
+        </div>
+      </div>
+      <p class="note">Saved in this page only. Download before starting a new session or leaving.</p>
+    </main>
     <script type="module" src="/demo/main.ts"></script>
   </body>
 </html>

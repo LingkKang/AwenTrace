@@ -1,18 +1,11 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import type { Recorder } from '../../src/index.js';
-import { createTrace, reconstructText } from '../../src/index.js';
 
-declare global {
-  interface Window {
-    awen: { recorder: Recorder; begin(): void; createTrace: typeof createTrace; reconstructText: typeof reconstructText };
-  }
-}
-const read = (page: Page) => page.evaluate(() => window.awen.recorder.getTrace());
+const read = (page: Page) => page.evaluate(() => window.awenTest.recorder.getTrace());
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Start a session', exact: true }).click();
+  await page.goto('/tests/browser/fixtures/editor.html');
+  await page.locator('#writer').focus();
 });
 
 test('real ASCII typing, deletion and newline reconstruct exactly with linked beforeinput', async ({ page }) => {
@@ -26,7 +19,7 @@ test('real ASCII typing, deletion and newline reconstruct exactly with linked be
   expect(edits.every(e => e.payload.supported && e.payload.beforeInputSequence !== null)).toBe(true);
   expect(edits.every(e => e.trusted)).toBe(true);
   expect(trace.events.some(e => e.kind === 'keyup' && e.payload.downSequence !== null)).toBe(true);
-  expect(await page.evaluate(() => window.awen.reconstructText(window.awen.recorder.stop()))).toBe(trace.finalText);
+  expect(await page.evaluate(() => window.awenTest.reconstructText(window.awenTest.recorder.stop()))).toBe(trace.finalText);
   expect(trace.events.every((e, i) => e.sequence === i + 1 && e.elapsedMs >= 0)).toBe(true);
   expect(trace.events.every((e, i) => !i || e.elapsedMs >= trace.events[i - 1]!.elapsedMs)).toBe(true);
 });
@@ -139,7 +132,7 @@ test('unsupported undo and non-ASCII changes are flagged without losing reconstr
   const trace = await read(page);
   expect(trace.events.some(e => e.kind === 'input' && e.payload.inputType === 'historyUndo' && !e.payload.supported)).toBe(true);
   expect(trace.events.some(e => e.kind === 'input' && e.payload.issues.includes('non-ascii-out-of-scope'))).toBe(true);
-  expect(await page.evaluate(() => window.awen.reconstructText(window.awen.recorder.getTrace()))).toBe(trace.finalText);
+  expect(await page.evaluate(() => window.awenTest.reconstructText(window.awenTest.recorder.getTrace()))).toBe(trace.finalText);
 });
 
 test('programmatic value change produces an explicit checkpoint', async ({ page }) => {
@@ -149,7 +142,7 @@ test('programmatic value change produces an explicit checkpoint', async ({ page 
   const checkpoint = trace.events.find(e => e.kind === 'checkpoint');
   expect(checkpoint?.payload.text).toBe('external update');
   expect(checkpoint?.payload.supported).toBe(false);
-  expect(await page.evaluate(() => window.awen.reconstructText(window.awen.recorder.getTrace()))).toBe('external update');
+  expect(await page.evaluate(() => window.awenTest.reconstructText(window.awenTest.recorder.getTrace()))).toBe('external update');
 });
 
 test('cancelled beforeinput does not lend its selection to a later input', async ({ page }) => {
@@ -169,10 +162,10 @@ test('cancelled beforeinput does not lend its selection to a later input', async
 test('stop is idempotent, detaches listeners, permits a new recorder', async ({ page }) => {
   await page.keyboard.type('done');
   const result = await page.evaluate(() => {
-    const recorder = window.awen.recorder;
+    const recorder = window.awenTest.recorder;
     const first = recorder.stop(), second = recorder.stop();
     const el = document.querySelector<HTMLTextAreaElement>('#writer')!;
-    const next = window.awen.createTrace({ target: el });
+    const next = window.awenTest.createTrace({ target: el });
     next.mark('new-session'); next.stop();
     return { first, second, count: recorder.eventCount };
   });
@@ -183,8 +176,8 @@ test('stop is idempotent, detaches listeners, permits a new recorder', async ({ 
 
 test('snapshots are detached and subscriber errors cannot interrupt capture', async ({ page }) => {
   await page.evaluate(() => {
-    window.awen.recorder.subscribe(() => { throw new Error('sink failed'); });
-    const exported = window.awen.recorder.getTrace(); exported.events.length = 0; exported.header.initialText = 'corruption';
+    window.awenTest.recorder.subscribe(() => { throw new Error('sink failed'); });
+    const exported = window.awenTest.recorder.getTrace(); exported.events.length = 0; exported.header.initialText = 'corruption';
   });
   await page.keyboard.type('safe');
   const trace = await read(page);
@@ -196,9 +189,9 @@ test('duplicate attachment and non-ASCII initial text are rejected', async ({ pa
   const result = await page.evaluate(() => {
     const el = document.querySelector<HTMLTextAreaElement>('#writer')!;
     let duplicate = false, unicode = false;
-    try { window.awen.createTrace({ target: el }); } catch { duplicate = true; }
+    try { window.awenTest.createTrace({ target: el }); } catch { duplicate = true; }
     const other = document.createElement('textarea'); other.value = 'é';
-    try { window.awen.createTrace({ target: other }); } catch { unicode = true; }
+    try { window.awenTest.createTrace({ target: other }); } catch { unicode = true; }
     return { duplicate, unicode };
   });
   expect(result).toEqual({ duplicate: true, unicode: true });
@@ -206,10 +199,10 @@ test('duplicate attachment and non-ASCII initial text are rejected', async ({ pa
 
 test('movement can be disabled without losing clicks', async ({ page }) => {
   await page.evaluate(() => {
-    window.awen.recorder.stop();
+    window.awenTest.recorder.stop();
     const target = document.querySelector<HTMLTextAreaElement>('#writer')!;
-    const recorder = window.awen.createTrace({ target, capturePointerMoves: false });
-    Object.defineProperty(window.awen, 'recorder', { get: () => recorder });
+    const recorder = window.awenTest.createTrace({ target, capturePointerMoves: false });
+    window.awenTest.recorder = recorder;
   });
   await page.locator('#writer').click();
   const trace = await read(page);
@@ -228,7 +221,7 @@ test('blur reports interrupted keys and never fabricates their release', async (
 
 test('reentrant stop from a subscriber cannot duplicate stop or leak listeners', async ({ page }) => {
   const trace = await page.evaluate(() => {
-    const recorder = window.awen.recorder;
+    const recorder = window.awenTest.recorder;
     recorder.subscribe(event => { if (event.kind === 'stop') recorder.stop(); });
     return recorder.stop();
   });
@@ -238,7 +231,7 @@ test('reentrant stop from a subscriber cannot duplicate stop or leak listeners',
 
 test('subscribers receive sequence order even when another subscriber adds a marker', async ({ page }) => {
   const sequences = await page.evaluate(() => {
-    const recorder = window.awen.recorder;
+    const recorder = window.awenTest.recorder;
     const seen: number[] = [];
     recorder.subscribe(event => { if (event.kind === 'marker' && event.payload.name === 'outer') recorder.mark('inner'); });
     recorder.subscribe(event => seen.push(event.sequence));
@@ -251,7 +244,7 @@ test('subscribers receive sequence order even when another subscriber adds a mar
 
 test('stop from an event subscriber still delivers the stop event to the remaining sinks', async ({ page }) => {
   const kinds = await page.evaluate(() => {
-    const recorder = window.awen.recorder;
+    const recorder = window.awenTest.recorder;
     const seen: string[] = [];
     recorder.subscribe(event => { if (event.kind === 'marker') recorder.stop(); });
     recorder.subscribe(event => seen.push(event.kind));
@@ -266,23 +259,12 @@ test('lifecycle, offline/online, resize and research markers share one sequence'
   await context.setOffline(true);
   await expect.poll(async () => (await read(page)).events.some(e => e.kind === 'online' && !e.payload.online)).toBe(true);
   await context.setOffline(false);
-  await page.evaluate(() => window.awen.recorder.mark('feedback-shown', { feedbackId: 'f1' }));
-  await page.getByRole('button', { name: 'Finish recording' }).click();
+  await page.evaluate(() => window.awenTest.recorder.mark('feedback-shown', { feedbackId: 'f1' }));
+  await page.locator('#writer').evaluate((el: HTMLTextAreaElement) => el.blur());
+  await page.evaluate(() => window.awenTest.recorder.stop());
   const trace = await read(page);
   expect(trace.events.some(e => e.kind === 'resize')).toBe(true);
   expect(trace.events.some(e => e.kind === 'blur' && e.payload.scope === 'editor')).toBe(true);
   expect(trace.events.some(e => e.kind === 'marker' && e.payload.name === 'feedback-shown')).toBe(true);
   expect(trace.stopped).toBe(true);
-});
-
-test('demo exports whole session and shows verified text history', async ({ page }) => {
-  await page.keyboard.type('A writing process.');
-  await page.getByRole('button', { name: 'Finish recording' }).click();
-  await expect(page.locator('#verified')).toHaveText('✓ Reconstruction verified');
-  await expect(page.locator('#replay-text')).toHaveText('A writing process.');
-  const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'JSON ↓', exact: true }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/^awentrace-.+\.json$/);
-  await page.screenshot({ path: 'test-results/awentrace-demo.png', fullPage: true });
 });

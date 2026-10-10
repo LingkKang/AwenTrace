@@ -121,7 +121,14 @@ Capture is scoped to the supplied editor. Mouse/pointer releases and movements o
 
 GitHub Actions runs the same checks on every push, pull request update and merge queue candidate, using Node 24 and Chromium on Ubuntu. Merging a pull request triggers another run through the resulting push. The workflow can also be started manually from the Actions tab. Failed browser tests retain screenshots and Playwright traces as a workflow artifact for 7 days. To reproduce CI in an isolated container, run `docker compose run --rm -e CI=true dev npm test`.
 
-See [architecture and event format](docs/architecture.md) for the schema and extension boundary. The demo includes an event inspector, JSON/JSONL/CSV downloads and an event-by-event text-history slider.
+Browser tests are split into two Playwright projects:
+
+- `library`: 20 capture/lifecycle tests against `tests/browser/fixtures/editor.html`, a standalone textarea fixture with a test-only API bridge. These tests do not load the demo.
+- `demo`: 2 end-to-end tests using visible controls and downloaded files to verify session start/finish/restart and JSON/JSONL/CSV exports. The demo exposes no test globals.
+
+Run either suite with `npm run test:browser -- --project=library` or `npm run test:browser -- --project=demo`. The default `npm test` runs both.
+
+See [architecture and event format](docs/architecture.md) for the schema and extension boundary. The demo provides a writing area, session controls, an event count and JSON/JSONL/CSV downloads.
 
 ## License
 

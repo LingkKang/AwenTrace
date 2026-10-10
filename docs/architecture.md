@@ -11,6 +11,14 @@ The core is an editor-scoped observer. It has no UI-framework imports, no runtim
 
 Capture and analysis are separate. Future pause/burst analyzers should consume immutable traces and return a separate result containing their own algorithm version, parameters and source event IDs. They should never rewrite the raw trace. Feedback presentation can be associated with writing using `mark()` without introducing platform-specific feedback concepts into this library.
 
+## Demo and browser-test isolation
+
+The demo markup lives in the root `index.html`; `demo/main.ts` handles session controls and downloads, and `demo/style.css` contains its styles. It consumes only the public `src/index.ts` API and does not expose a recorder on `window`.
+
+Library browser tests use `tests/browser/fixtures/editor.html` and `editor.ts`: a textarea and a test-only `window.awenTest` bridge that imports the public library entry point directly. No demo scripts, styles or controls are involved. `recorder.spec.ts` belongs to Playwright's `library` project; `demo.spec.ts` belongs to the `demo` project and checks visible UI behavior and downloaded data.
+
+Both projects share the Vite development server, but each test gets an isolated browser context. Library builds still include only `src/`, and npm package contents exclude the demo and test fixtures.
+
 ## Session and event format
 
 The canonical export is `{ header, events, finalText, stopped }` with schema `awentrace/0.1`. Each recorder creation starts a new session and monotonic clock. A host-supplied `sessionId` must be unique across its recordings; otherwise an ID is generated. There is no implicit resume across reloads.
