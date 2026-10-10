@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Use relative demo asset paths and verify both project-subpath and custom-domain deployments.
+
 - Separate Tests and Pages workflows; deploy the exact artifact from a successful master test run.
 
 - Build and test the static demo at its project base path, then deploy passing master updates to GitHub Pages.

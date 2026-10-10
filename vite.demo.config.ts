@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: '/AwenTrace/',
+  base: './',
   build: {
     outDir: 'demo-dist',
     emptyOutDir: true,

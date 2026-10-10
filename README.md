@@ -133,16 +133,16 @@ See [architecture and event format](docs/architecture.md) for the schema and ext
 
 ## Hosted demo
 
-The demo is published at [lingkkang.github.io/AwenTrace](https://lingkkang.github.io/AwenTrace/).
+The demo is published at [awentrace.lingkang.dev](https://awentrace.lingkang.dev/). The [GitHub Pages address](https://lingkkang.github.io/AwenTrace/) redirects to the configured custom domain.
 
 - `npm run build` builds only the library into `dist/`.
-- `npm run build:demo` builds the static demo into `demo-dist/`, with the `/AwenTrace/` base path configured in `vite.demo.config.ts`.
-- `npm run preview:demo -- --host 0.0.0.0 --port 4174` previews that build at `http://localhost:4174/AwenTrace/` (publish the port separately if running inside Docker).
-- `npm run test:pages` builds the demo and runs its end-to-end tests against the static preview at the actual project base path.
+- `npm run build:demo` builds the static demo into `demo-dist/`, with relative asset paths configured in `vite.demo.config.ts` to support both project subpaths and custom-domain roots.
+- `npm run preview:demo -- --host 0.0.0.0 --port 4174` previews that build at `http://localhost:4174/` (publish the port separately if running inside Docker).
+- `npm run test:pages` builds the demo and runs its end-to-end tests against static previews at both the project base path and the domain root.
 
 Two independent workflows form the deployment pipeline. `Tests` (`.github/workflows/tests.yml`) runs `npm test` and `npm run test:pages` on pushes, PR updates, merge queue candidates and manual runs. Successful pushes to `master` (including merged PRs), or manual Tests runs on `master`, save the tested demo as a commit-named artifact.
 
-`Pages` (`.github/workflows/pages.yml`) listens for completed `Tests` runs on `master` and deploys only if the originating run succeeded and came from this repository's push or manual event. It downloads the artifact by the originating run ID and commit SHA, then publishes those exact static files without checking out or rebuilding newer code. Failed or cancelled tests and PR/merge queue runs never deploy. To retry testing and deployment, rerun `Tests`; Pages has no standalone manual trigger that bypasses testing. Pages uses the `github-pages` environment. No custom domain is configured.
+`Pages` (`.github/workflows/pages.yml`) listens for completed `Tests` runs on `master` and deploys only if the originating run succeeded and came from this repository's push or manual event. It downloads the artifact by the originating run ID and commit SHA, then publishes those exact static files without checking out or rebuilding newer code. Failed or cancelled tests and PR/merge queue runs never deploy. To retry testing and deployment, rerun `Tests`; Pages has no standalone manual trigger that bypasses testing. Pages uses the `github-pages` environment. The custom domain is configured in the repository Pages settings.
 
 Generated site files are ignored by Git and excluded from Docker's build context and the npm package. Only the static build is uploaded; the development server, test fixture and participant recordings are not deployed.
 
