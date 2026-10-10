@@ -236,15 +236,108 @@ test('blur reports interrupted keys and never fabricates their release', async (
   expect(trace.events.some(e => e.kind === 'keyup' && e.payload.key === 'Shift')).toBe(false);
 });
 
-test('reentrant stop from a subscriber cannot duplicate stop or leak listeners', async ({ page }) => {
-  const trace = await page.evaluate(() => {
-    const recorder = window.awenTest.recorder;
-    recorder.subscribe(event => { if (event.kind === 'stop') recorder.stop(); });
-    return recorder.stop();
+for (const trigger of ['direct', 'subscriber'] as const) {
+  test(`stop callbacks see the completed trace when stopped by ${trigger}`, async ({ page }) => {
+    await page.keyboard.type('done');
+    const result = await page.evaluate(trigger => {
+      const recorder = window.awenTest.recorder;
+      const snapshots: ReturnType<typeof recorder.getTrace>[] = [];
+      const states: boolean[] = [];
+      recorder.subscribe(event => {
+        if (event.kind === 'marker' && trigger === 'subscriber') recorder.stop();
+        if (event.kind === 'stop') {
+          states.push(recorder.stopped);
+          snapshots.push(recorder.stop(), recorder.getTrace());
+        }
+      });
+      if (trigger === 'subscriber') recorder.mark('finish');
+      const final = recorder.stop();
+      return { final, snapshots, states };
+    }, trigger);
+    expect(result.states).toEqual([true]);
+    expect(result.snapshots).toEqual([result.final, result.final]);
+    expect(result.final.events.filter(e => e.kind === 'stop')).toHaveLength(1);
+    expect(result.final.stopped).toBe(true);
+    await page.keyboard.type('ignored');
+    expect(await read(page)).toEqual(result.final);
   });
-  expect(trace.events.filter(e => e.kind === 'stop')).toHaveLength(1);
-  expect(trace.stopped).toBe(true);
+}
+
+test('a stop callback can attach a new recorder without losing its ownership', async ({ page }) => {
+  const result = await page.evaluate(() => {
+    const original = window.awenTest.recorder;
+    const target = document.querySelector<HTMLTextAreaElement>('#writer')!;
+    original.subscribe(event => {
+      if (event.kind === 'stop') window.awenTest.recorder = window.awenTest.createTrace({ target });
+    });
+    const final = original.stop();
+    let duplicateRejected = false;
+    try { window.awenTest.createTrace({ target }); } catch { duplicateRejected = true; }
+    return { final, duplicateRejected, active: window.awenTest.recorder.sessionId };
+  });
+  expect(result.duplicateRejected).toBe(true);
+  expect(result.active).not.toBe(result.final.header.sessionId);
+  await page.keyboard.type('new session');
+  expect((await read(page)).finalText).toBe('new session');
 });
+
+test('default session IDs work on an ordinary HTTP origin', async ({ page, baseURL }) => {
+  await page.route('http://awentrace.test/**', async route => {
+    const requested = new URL(route.request().url());
+    const response = await route.fetch({ url: new URL(requested.pathname + requested.search, baseURL).href });
+    await route.fulfill({ response });
+  });
+  await page.goto('http://awentrace.test/tests/browser/fixtures/editor.html');
+  const result = await page.evaluate(() => {
+    const first = window.awenTest.recorder.stop();
+    const target = document.querySelector<HTMLTextAreaElement>('#writer')!;
+    const second = window.awenTest.createTrace({ target }).stop();
+    const explicit = window.awenTest.createTrace({ target, sessionId: 'host-session' });
+    window.awenTest.recorder = explicit;
+    return { secure: isSecureContext, randomUUID: typeof crypto.randomUUID,
+      ids: [first.header.sessionId, second.header.sessionId], explicit: explicit.sessionId };
+  });
+  expect(result.secure).toBe(false);
+  expect(result.randomUUID).toBe('undefined');
+  expect(new Set(result.ids).size).toBe(2);
+  for (const id of result.ids) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  expect(result.explicit).toBe('host-session');
+  await page.locator('#writer').pressSequentially('HTTP input');
+  expect(await page.evaluate(() => window.awenTest.reconstructText(window.awenTest.recorder.stop()))).toBe('HTTP input');
+});
+
+for (const mode of ['open', 'closed'] as const) {
+  test(`focus state follows the editor in nested ${mode} shadow roots`, async ({ page }) => {
+    const editor = await page.evaluateHandle(mode => {
+      window.awenTest.recorder.stop();
+      const host = document.createElement('div');
+      document.body.append(host);
+      const outer = host.attachShadow({ mode });
+      const innerHost = document.createElement('div');
+      outer.append(innerHost);
+      const inner = innerHost.attachShadow({ mode });
+      const target = document.createElement('textarea');
+      inner.append(target);
+      window.awenTest.recorder = window.awenTest.createTrace({ target });
+      target.focus();
+      return target;
+    }, mode);
+    await page.keyboard.type('abc');
+    const typing = await read(page);
+    expect(typing.events.find(e => e.kind === 'start')?.state.focused).toBe(false);
+    expect(typing.events.find(e => e.kind === 'focus')?.state.focused).toBe(true);
+    const keys = typing.events.filter(e => e.kind === 'keydown');
+    expect(keys).toHaveLength(3);
+    expect(keys.every(e => e.state.focused)).toBe(true);
+    await editor.evaluate(target => target.setSelectionRange(0, 1));
+    await expect.poll(async () => (await read(page)).events.some(e =>
+      e.kind === 'selection' && e.payload.current.start === 0 && e.payload.current.end === 1 && e.state.focused
+    )).toBe(true);
+    await editor.evaluate(target => target.blur());
+    expect((await read(page)).events.find(e => e.kind === 'blur')?.state.focused).toBe(false);
+    expect(await page.evaluate(() => window.awenTest.reconstructText(window.awenTest.recorder.stop()))).toBe('abc');
+  });
+}
 
 test('subscribers receive sequence order even when another subscriber adds a marker', async ({ page }) => {
   const sequences = await page.evaluate(() => {

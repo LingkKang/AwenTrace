@@ -11,6 +11,7 @@
 | `src/export.ts` | JSON, JSONL and CSV serialization |
 | `index.html`, `demo/` | Demo markup, controls and styles |
 | `tests/core.test.mjs` | Text reconstruction and export tests |
+| `tests/package.test.mjs` | Packed files, installation, declarations and browser consumption |
 | `tests/browser/fixtures/` | Minimal textarea fixture and test-only API bridge |
 | `tests/browser/recorder.spec.ts` | Library browser tests |
 | `tests/browser/demo.spec.ts` | Demo controls, history and download tests |
@@ -19,7 +20,7 @@ The core has no runtime dependencies. It observes the editor without rendering U
 
 The demo and fixture consume the public API separately. Only the fixture exposes `window.awenTest`; the demo has no test bridge. Playwright gives each test an isolated browser context.
 
-`npm run build` emits only the library into `dist/`. `npm run build:demo` emits the static site into `demo-dist/`, using relative asset paths. Neither the demo nor the tests are included in the npm package. Generated builds and test results are ignored by Git.
+`npm run build` emits only the library into `dist/`. `npm run build:demo` emits the static site into `demo-dist/`, using relative asset paths. The npm package includes `src/` for declaration-map navigation and this architecture document. Neither the demo nor the tests are included. Generated builds and test results are ignored by Git.
 
 Run one browser suite with `npm run test:browser -- --project=library` or `--project=demo`. To reproduce the full Tests workflow in a separate container, run `docker compose run --rm -e CI=true dev sh -c "npm test && npm run test:pages"`.
 
@@ -27,7 +28,7 @@ Run one browser suite with `npm run test:browser -- --project=library` or `--pro
 
 See the [API reference](../README.md#api) for functions and recorder methods.
 
-A supplied `sessionId` must be unique across recordings. Metadata and marker data must be JSON-compatible.
+A supplied `sessionId` must be unique across recordings. Generated IDs use `crypto.randomUUID()`, with a UUID v4 fallback based on `crypto.getRandomValues()` for HTTP origins. Metadata and marker data must be JSON-compatible.
 
 Callbacks run synchronously and receive deeply frozen events. Callback errors go to `onError` or the console without stopping capture. Keep expensive work out of callbacks; snapshots and exports clone the complete trace.
 
@@ -68,7 +69,7 @@ Mouse/pointer pairs are separate observations, not separate user actions. With m
 
 Clipboard text comes from browser events or the current selection. Copy/cut selections do not prove what reached the system clipboard; paste text may be unavailable. Only exposed file metadata is retained. The core does not request clipboard permissions or read arbitrary clipboard/file contents.
 
-Listeners never call `preventDefault()`; later application handlers may still cancel an event. Hosts control editing policy and must stop capture before unmounting the editor.
+Focus state is resolved through the owning document and any enclosing shadow roots. Listeners never call `preventDefault()`; later application handlers may still cancel an event. Hosts control editing policy and must stop capture before unmounting the editor. Stop listeners run after native listeners are detached and the trace is marked stopped; `stop()` and `getTrace()` inside a stop callback return the completed snapshot.
 
 Pausing preserves the session and suspends native capture and automatic synchronization. Exports retain the last captured text. The `pause` event records interrupted keys; `resume` records the suspension duration in `pausedMs`. Repeated calls are idempotent, and explicit markers remain permitted while paused.
 

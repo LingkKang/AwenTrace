@@ -4,10 +4,16 @@ A framework-independent TypeScript library for writing activity recording in a b
 
 ## How to Use AwenTracer
 
-Run `npm ci` and `npm run build` in this repository, then import the built library into your browser application:
+Install the package in your application:
+
+```sh
+npm install awentrace
+```
+
+Import the ESM entry point in your browser application using a bundler or an import map:
 
 ```ts
-import { createTrace, toJSONL } from './dist/index.js';
+import { createTrace, toJSONL } from 'awentrace';
 
 const target = document.querySelector<HTMLTextAreaElement>('#writing')!;
 const recorder = createTrace({
@@ -20,7 +26,7 @@ const trace = recorder.stop();
 const jsonl = toJSONL(trace);
 ```
 
-Attach the recorder after the textarea mounts and call `stop()` before removing it. After changing `textarea.value` in application code, call `sync()`.
+The package provides ESM JavaScript and TypeScript declarations. Attach the recorder after the textarea mounts and call `stop()` before removing it. After changing `textarea.value` in application code, call `sync()`.
 
 ### API
 
@@ -38,7 +44,7 @@ Attach the recorder after the textarea mounts and call `stop()` before removing 
 | `applyDelta(text, delta)` | Validate and apply a text replacement. |
 | `toJSON(trace, pretty?)`, `toJSONL(trace)`, `toCSV(trace)` | Export as JSON, JSONL or CSV. |
 
-See [API details and event format](docs/architecture.md#public-api) for callback behavior and trace semantics.
+See [API details and event format](docs/architecture.md#public-api) for callback behavior and trace semantics. This document is also included at `node_modules/awentrace/docs/architecture.md`.
 
 ## What AwenTrace Records
 
@@ -67,7 +73,7 @@ docker compose exec dev npm run test:pages
 
 Open [localhost:5174](http://localhost:5174/) for the demo. Source files are mounted into the `awentrace-dev` container; dependencies and Chromium are installed there.
 
-`npm test` runs TypeScript, unit and browser tests. Library browser tests use a minimal textarea fixture separate from the demo. `npm run test:pages` builds the static demo and checks both project-subpath and domain-root hosting.
+`npm test` runs TypeScript, unit, browser and installed-package tests. Use `npm run test:package` to check packing, installation, declarations and browser use separately. Library browser tests use a minimal textarea fixture separate from the demo. `npm run test:pages` builds the static demo and checks both project-subpath and domain-root hosting.
 
 Use `docker compose stop` / `start` to stop or restart development, and `docker compose down` to remove the container. See [development layout](docs/architecture.md#development-layout) for source and test locations.
 

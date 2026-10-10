@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Finalize recorder state before stop callbacks; resolve focus through shadow roots and generate session IDs on HTTP origins.
+- Document npm installation and include architecture documentation and declaration-map sources in the package.
+- Test the packed library in an independent consumer alongside lifecycle, HTTP and shadow-focus regressions.
+
 - Add recorder pause/resume within a session, with explicit boundaries and checkpoint reconciliation.
 - Simplify demo controls, counts and history; display the latest 200 records newest first while exporting the full chronological trace.
 - Disable mouse/pointer movement capture by default and in the demo.

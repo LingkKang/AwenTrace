@@ -16,6 +16,27 @@ function freeze<T>(value: T): T {
   return value;
 }
 
+function sessionUUID(crypto: Crypto): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  // getRandomValues also works on HTTP origins where randomUUID is unavailable.
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function hasEditorFocus(target: HTMLTextAreaElement): boolean {
+  let active: Element = target;
+  for (;;) {
+    // Walk outward from the textarea, including closed and nested shadow roots.
+    const root = active.getRootNode() as Document | ShadowRoot;
+    if (root.activeElement !== active) return false;
+    if (!('host' in root)) return root === target.ownerDocument;
+    active = root.host;
+  }
+}
+
 const sameSelection = (a: Selection, b: Selection) =>
   a.start === b.start && a.end === b.end && a.direction === b.direction;
 
@@ -30,7 +51,7 @@ export function createTrace(options: TraceOptions): Recorder {
   if (!isAscii(target.value)) throw new Error('AwenTrace v0.1 requires ASCII initial text');
   const perf = win.performance;
   const started = perf.now();
-  const sessionId = options.sessionId ?? win.crypto.randomUUID();
+  const sessionId = options.sessionId ?? sessionUUID(win.crypto);
   if (!sessionId.trim()) throw new Error('sessionId must not be empty');
   const selection = (): Selection => ({ start: target.selectionStart, end: target.selectionEnd,
     direction: target.selectionDirection });
@@ -78,9 +99,11 @@ export function createTrace(options: TraceOptions): Recorder {
       domTimeStamp: native?.timeStamp ?? null, trusted: native?.isTrusted ?? null,
       defaultPrevented: native?.defaultPrevented ?? null,
       state: { selection: selection(), textLength: target.value.length, revision, ascii: isAscii(target.value),
-        focused: doc.activeElement === target, scroll: { left: target.scrollLeft, top: target.scrollTop } },
+        focused: hasEditorFocus(target), scroll: { left: target.scrollLeft, top: target.scrollTop } },
     }) as TraceEvent;
     events.push(event);
+    // Stop callbacks must observe the same completed trace as the caller.
+    if (kind === 'stop') stopped = true;
     notifications.push(event);
     // A subscriber may add a marker. Every subscriber must still see the original
     // event before that marker, matching the trace's sequence order.
@@ -191,13 +214,11 @@ export function createTrace(options: TraceOptions): Recorder {
         stopping = true;
         paused = false;
         sync('stop');
-        emit('stop', { text, interruptedKeys: interruptKeys() });
-        stopped = true;
         win.clearTimeout(pendingTimer);
         pending = null;
         for (const remove of removers) remove();
-        if (!delivering) listeners.clear();
         owners.delete(target);
+        emit('stop', { text, interruptedKeys: interruptKeys() });
       }
       return trace();
     },
@@ -243,7 +264,7 @@ export function createTrace(options: TraceOptions): Recorder {
   listen(target, 'select', event => select('select', event));
   listen(target, 'selectionchange', event => select('selectionchange', event));
   listen(doc, 'selectionchange', event => {
-    if (doc.activeElement === target) select('document-selectionchange', event);
+    if (hasEditorFocus(target)) select('document-selectionchange', event);
   });
 
   const mouse = (event: MouseEvent): MouseEvidence => {
