@@ -2,20 +2,13 @@
 
 ## Unreleased
 
-- Display the latest demo writing records first while preserving chronological exports and text history.
-
-- Disable mouse/pointer movement capture by default and explicitly keep it disabled in the demo.
-
-- Use relative demo asset paths and verify both project-subpath and custom-domain deployments.
-
-- Separate Tests and Pages workflows; deploy the exact artifact from a successful master test run.
-
-- Build and test the static demo at its project base path, then deploy passing master updates to GitHub Pages.
-
-- Decouple library browser tests from the demo with a minimal textarea fixture and separate Playwright projects.
-- Refine the development demo with start/pause/resume/reset, whitespace word counts, the latest 200 detailed records and placeholder-styled text history; remove promotional copy, the statistics sidebar and the test global.
-- Add manual recorder pause/resume with explicit timeline boundaries and checkpoint reconciliation.
-- Validate demo session controls, history, counts and actual JSON/JSONL/CSV downloads through end-to-end tests.
+- Add recorder pause/resume within a session, with explicit boundaries and checkpoint reconciliation.
+- Simplify demo controls, counts and history; display the latest 200 records newest first while exporting the full chronological trace.
+- Disable mouse/pointer movement capture by default and in the demo.
+- Isolate library browser tests from the demo and cover demo controls, history and downloads through end-to-end tests.
+- Build the static demo with relative asset paths and verify project-subpath and domain-root hosting.
+- Separate Tests and Pages workflows; deploy the tested artifact from successful master runs.
+- Simplify the README and consolidate API details, event semantics and future work.
 
 ## 0.1.0
 

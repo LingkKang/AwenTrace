@@ -1,85 +1,81 @@
-# AwenTrace 0.1 architecture
+# AwenTrace architecture
 
-## Boundaries
+## Development layout
 
-The core is an editor-scoped observer. It has no UI-framework imports, no runtime packages and no backend dependency. The Vite demo and Playwright tests are development consumers, not dependencies of the built library. Importing the ESM entry point is safe in Node; creating a recorder requires a browser textarea.
+| Path | Role |
+| --- | --- |
+| `src/index.ts` | Public ESM entry point |
+| `src/types.ts` | Versioned event types and public interfaces |
+| `src/recorder.ts` | Browser listeners, event ordering and lifecycle |
+| `src/text.ts` | ASCII checks, edit deltas and reconstruction |
+| `src/export.ts` | JSON, JSONL and CSV serialization |
+| `index.html`, `demo/` | Demo markup, controls and styles |
+| `tests/core.test.mjs` | Text reconstruction and export tests |
+| `tests/browser/fixtures/` | Minimal textarea fixture and test-only API bridge |
+| `tests/browser/recorder.spec.ts` | Library browser tests |
+| `tests/browser/demo.spec.ts` | Demo controls, history and download tests |
 
-- `types.ts`: versioned event contract and public API.
-- `recorder.ts`: browser listeners, ordered events, selection evidence and lifecycle.
-- `text.ts`: ASCII checks, replacement derivation, patch validation and reconstruction.
-- `export.ts`: serialization only; no implicit analysis or network activity.
+The core has no runtime dependencies. It observes the editor without rendering UI, changing text or sending data over a network. Importing it in Node is safe; creating a recorder requires a browser textarea.
 
-Capture and analysis are separate. Future pause/burst analyzers should consume immutable traces and return a separate result containing their own algorithm version, parameters and source event IDs. They should never rewrite the raw trace. Feedback presentation can be associated with writing using `mark()` without introducing platform-specific feedback concepts into this library.
+The demo and fixture consume the public API separately. Only the fixture exposes `window.awenTest`; the demo has no test bridge. Playwright gives each test an isolated browser context.
 
-## Demo and browser-test isolation
+`npm run build` emits only the library into `dist/`. `npm run build:demo` emits the static site into `demo-dist/`, using relative asset paths. Neither the demo nor the tests are included in the npm package. Generated builds and test results are ignored by Git.
 
-The demo markup lives in the root `index.html`; `demo/main.ts` handles session controls and downloads, and `demo/style.css` contains its styles. It consumes only the public `src/index.ts` API and does not expose a recorder on `window`.
+Run one browser suite with `npm run test:browser -- --project=library` or `--project=demo`. To reproduce the full Tests workflow in a separate container, run `docker compose run --rm -e CI=true dev sh -c "npm test && npm run test:pages"`.
 
-Library browser tests use `tests/browser/fixtures/editor.html` and `editor.ts`: a textarea and a test-only `window.awenTest` bridge that imports the public library entry point directly. No demo scripts, styles or controls are involved. `recorder.spec.ts` belongs to Playwright's `library` project; `demo.spec.ts` belongs to the `demo` project and checks visible UI behavior and downloaded data.
+## Public API
 
-Both projects share the Vite development server, but each test gets an isolated browser context. Library builds still include only `src/`, and npm package contents exclude the demo and test fixtures.
+See the [API reference](../README.md#api) for functions and recorder methods.
+
+A supplied `sessionId` must be unique across recordings. Metadata and marker data must be JSON-compatible.
+
+Callbacks run synchronously and receive deeply frozen events. Callback errors go to `onError` or the console without stopping capture. Keep expensive work out of callbacks; snapshots and exports clone the complete trace.
 
 ## Session and event format
 
-The canonical export is `{ header, events, finalText, stopped }` with schema `awentrace/0.1`. Each recorder creation starts a new session and monotonic clock. A host-supplied `sessionId` must be unique across its recordings; otherwise an ID is generated. There is no implicit resume across reloads.
+A trace is `{ header, events, finalText, stopped }`, with schema `awentrace/0.1`. Each recorder starts a new session and clock. The header stores initial text/selection, capture settings, environment, `performanceTimeOrigin` and `startPerformanceMs`.
 
-Each event carries:
-
-| Field | Semantics |
+| Event field | Meaning |
 | --- | --- |
-| `id` | Session ID and sequence, useful for a host's idempotent persistence |
-| `sequence` | Strictly increasing observed order, starting at 1 |
-| `kind`, `payload` | Discriminated event-specific evidence |
-| `elapsedMs` | `performance.now()` minus recorder start; handler observation time |
-| `wallTime` | Client ISO-8601 wall time |
-| `domTimeStamp` | Raw native event timestamp, or null for generated records |
+| `id`, `sequence` | Session-scoped ID and consecutive order, starting at 1 |
+| `kind`, `payload` | Event type and its evidence |
+| `elapsedMs` | Monotonic elapsed time at handler observation |
+| `wallTime` | Client ISO-8601 time; subject to system-clock changes |
+| `domTimeStamp` | Native timestamp, or null for generated records |
 | `trusted` | Native `isTrusted`, or null for generated records |
-| `defaultPrevented` | Native cancellation state at observation, not eventual cancellation |
-| `state` | Observed selection, text length, revision, ASCII status, focus and scroll |
+| `defaultPrevented` | Cancellation state when observed |
+| `state` | Selection, text length, revision, ASCII status, focus and scroll |
 
-The header records `performanceTimeOrigin`, `startPerformanceMs`, initial text/selection, capture settings and environment. Client timestamps are observations and cannot establish server authority or tamper resistance.
+Timestamps do not guarantee millisecond accuracy, synchronization between computers or tamper resistance. Events remain in chronological order in all exports. JSONL wraps them with a header and a final-text/stop-status footer.
 
 ## Edit evidence
 
-An `input` event also carries normalized edit evidence. `beforeInputSequence` links the observed intent to the resulting edit when available; `selectionBefore` is null if it was not observed reliably. Beforeinput evidence expires after the current event-loop task and cancelled evidence is not reused. Input without beforeinput is still retained.
+An `input` event carries a replacement delta: remove `removed` at `start`, then insert `inserted`. Positions use UTF-16 code units and half-open ranges. A nonchanging input has a null delta and does not increment the revision.
 
-An edit delta is one replacement: remove the exact `removed` string at `start`, then insert `inserted`. Position ranges use UTF-16 code units. For supported ASCII this coincides with character offsets. A nonchanging input has a null delta and does not increment the revision.
+`beforeInputSequence` links preceding intent when available; `selectionBefore` is null without reliable evidence. Beforeinput evidence expires after the current event-loop task, and cancelled evidence is not reused. Observing beforeinput alone does not establish an edit.
 
-When observed selection and resulting text agree, the replacement is anchored to that selection. This matters for insertion or deletion among repeated characters. Otherwise, a common-prefix/suffix difference provides a reconstructable replacement and is explicitly labeled `text-difference`; it does not claim to identify the actual cursor operation.
+When selection and text agree, the delta is anchored to that selection. Otherwise, a prefix/suffix comparison yields a reconstructable replacement labeled `text-difference`; repeated text can make the actual edit location ambiguous.
 
-Script changes noticed without input events produce `checkpoint` records containing the observed text, delta and a reason. Unsupported native editing operations retain their `inputType`, text patch and issue flags. Neither path is reclassified as ordinary typing.
+Programmatic changes observed without input events produce `checkpoint` records. Hosts should call `sync()` after setting `textarea.value`; intermediate unobserved changes cannot be recovered. Unsupported input retains its text patch and issue flags. Non-ASCII initial text is rejected.
 
-`reconstructText` checks consecutive event sequence/session IDs, revision transitions, deleted text at each patch location, checkpoints and final text. These checks detect structural inconsistencies, not maliciously rewritten logs. JSONL adds a header record before the event records and a footer with final text and stop status.
+`reconstructText` checks session IDs, sequence, revision transitions, patch contents, checkpoints and final text. It detects structural inconsistencies, not maliciously rewritten logs.
 
-## Interaction details
+## Interaction and lifecycle
 
-Keyboard data retains both logical `key` and physical `code`. Keyup references the first matching keydown, including repeated presses. If focus or page lifecycle interrupts a press, its key identifier is reported and no release timing is invented. Pointer/mouse pairs remain separate raw events; analyses must avoid double counting.
+Keyboard events retain logical `key` and physical `code`; keyup links to the first matching keydown, including repeated presses. Interrupted presses are reported without inventing release times. System-reserved shortcuts may never reach the page.
 
-Clipboard events describe what the page can observe. Copy/cut selected text is an observation of selection, not a guarantee of system clipboard contents. Paste plain text may be unavailable. File metadata is retained when exposed, but file contents and arbitrary MIME bodies are not read. No permission prompts are generated by the core.
+Mouse/pointer pairs are separate observations, not separate user actions. With movement capture enabled, movement is unthrottled. Releases and enabled movement outside the editor are retained only for interactions that began inside it.
 
-All listeners are passive observers and never call `preventDefault()`. The host controls editing policy. A textarea gets at most one active recorder; `stop()` detaches every listener and is idempotent. Event subscribers receive frozen events; exports return detached copies. Hosts must stop before removing/unmounting an editor.
+Clipboard text comes from browser events or the current selection. Copy/cut selections do not prove what reached the system clipboard; paste text may be unavailable. Only exposed file metadata is retained. The core does not request clipboard permissions or read arbitrary clipboard/file contents.
 
-## Manual capture suspension
+Listeners never call `preventDefault()`; later application handlers may still cancel an event. Hosts control editing policy and must stop capture before unmounting the editor.
 
-`pause()` and `resume()` preserve the recorder session and event sequence. Native events and automatic synchronization are suspended while paused; exports retain the last captured text. A `pause` record reports interrupted keys, and `resume` records the elapsed suspension in `pausedMs`. The timeline includes this gap; manual suspension is distinct from a writing pause inferred by an analyzer. Repeated pause/resume calls are idempotent.
+Pausing preserves the session and suspends native capture and automatic synchronization. Exports retain the last captured text. The `pause` event records interrupted keys; `resume` records the suspension duration in `pausedMs`. Repeated calls are idempotent, and explicit markers remain permitted while paused.
 
-The library does not lock the editor. If its text changes while capture is suspended, resuming records the observed net change as a checkpoint with reason `resume`; intermediate changes cannot be recovered. Stopping while paused also reconciles the final text before detaching listeners. Explicit host markers remain permitted during suspension.
+The library does not lock the editor. Resuming after a text change adds a checkpoint with reason `resume`; stopping while paused also reconciles final text. The demo locks its editor during pause and discards the session on reset.
 
-The demo sets its textarea to read-only while paused, keeps all existing records, and resumes the same recorder. Reset stops and discards that recorder and clears all demo state. Its test-only bridge remains confined to the independent library fixture.
+## Storage and analysis
 
-## Persistence and future analysis
+Events live in memory. Hosts can persist them through `onEvent` or `subscribe`, keeping the session header, stable IDs and sequence. Page lifecycle events cannot guarantee delivery after a crash or forced termination.
 
-v0.1 intentionally retains events in memory. Mouse/pointer movement streams are disabled by default and in the demo; hosts may opt in with `capturePointerMoves: true`. A host may subscribe and queue data for IndexedDB or a server. Persist the session header as well as events, acknowledge events by stable ID, and retain ordering. This release does not provide that transport or durability layer. Snapshotting the complete trace on each key is discouraged.
-
-Future analyzers can derive inter-key intervals from selected keyboard timestamps, pauses from explicitly chosen thresholds and activity exclusions, and bursts from a declared segmentation rule. Those choices must be recorded with the analysis result. The core does not turn a raw time difference into a psychological pause or assume that adjacent input events are one word or burst.
-
-## Design sources
-
-The implementation and schema were designed independently for AwenTrace. Existing tools informed the functional scope only; no third-party implementation, modules or schema were copied.
-
-- [W3C Input Events](https://www.w3.org/TR/input-events-2/)
-- [MDN clipboardData](https://developer.mozilla.org/en-US/docs/Web/API/ClipboardEvent/clipboardData)
-- [MDN textarea selectionchange](https://developer.mozilla.org/en-US/docs/Web/API/HTMLTextAreaElement/selectionchange_event)
-- [Inputlog](https://www.inputlog.net/)
-- [FlexKeyLogger](https://github.com/terryyutian/keylogging-demo-webpage)
-- [CyWrite](https://github.com/chukharev/cywrite)
+Analysis should consume traces and produce separate results with algorithm versions, parameters and source event IDs. Manual recording suspension is distinct from an inferred writing pause. See the [README TODO](../README.md#todo) for planned capabilities and validation.
