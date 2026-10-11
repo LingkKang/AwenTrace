@@ -11,7 +11,7 @@ function element<T extends HTMLElement>(id: string): T {
 const writer = element<HTMLTextAreaElement>('writer');
 const start = element<HTMLButtonElement>('start');
 const reset = element<HTMLButtonElement>('reset');
-const formats = ['json', 'jsonl', 'csv'] as const;
+const formats = ['csv', 'json', 'jsonl'] as const;
 const downloads = formats.map(format => element<HTMLButtonElement>(format));
 const status = element('status');
 const exportError = element('export-error');
