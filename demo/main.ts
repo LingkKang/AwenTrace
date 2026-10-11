@@ -1,4 +1,4 @@
-import { applyDelta, createTrace, toCSV, toJSON, toJSONL } from '../src/index.js';
+import { applyDelta, createTrace, toCSV, toJSON } from '../src/index.js';
 import type { Recorder, TraceEvent } from '../src/index.js';
 import './style.css';
 
@@ -14,6 +14,7 @@ const reset = element<HTMLButtonElement>('reset');
 const formats = ['json', 'jsonl', 'csv'] as const;
 const downloads = formats.map(format => element<HTMLButtonElement>(format));
 const status = element('status');
+const exportError = element('export-error');
 const eventCount = element('event-count');
 const textCount = element('text-count');
 const rows = element<HTMLTableSectionElement>('events');
@@ -44,7 +45,7 @@ function render() {
     for (const event of events.slice(-200).reverse()) {
       const row = rows.insertRow();
       for (const value of [String(event.sequence), event.elapsedMs.toFixed(2), event.kind,
-        `${event.state.selection.start}–${event.state.selection.end}`, JSON.stringify(event.payload)]) {
+      `${event.state.selection.start}-${event.state.selection.end}`, JSON.stringify(event.payload)]) {
         row.insertCell().textContent = value;
       }
     }
@@ -67,6 +68,7 @@ start.addEventListener('click', () => {
     writer.readOnly = false;
     recorder = createTrace({
       target: writer,
+      gzip: true,
       capturePointerMoves: false,
       metadata: { application: 'AwenTrace demo' },
       onEvent(event) { events.push(event); scheduleRender(); },
@@ -92,6 +94,7 @@ start.addEventListener('click', () => {
 reset.addEventListener('click', () => {
   recorder?.stop();
   recorder = null;
+  exportError.textContent = '';
   events = [];
   cancelAnimationFrame(frame);
   frame = 0;
@@ -123,16 +126,23 @@ replay.addEventListener('input', () => {
   showHistory(text);
 });
 
-for (const selected of formats) element(selected).addEventListener('click', () => {
-  if (!recorder) return;
-  const trace = recorder.getTrace();
-  const content = selected === 'csv' ? toCSV(trace) : selected === 'jsonl' ? toJSONL(trace) : toJSON(trace, true);
-  const type = selected === 'csv' ? 'text/csv;charset=utf-8'
-    : selected === 'jsonl' ? 'application/x-ndjson;charset=utf-8' : 'application/json;charset=utf-8';
-  const url = URL.createObjectURL(new Blob([content], { type }));
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = `awentrace-${trace.header.sessionId}.${selected}`;
-  anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+for (const selected of formats) element(selected).addEventListener('click', async () => {
+  const current = recorder;
+  if (!current) return;
+  exportError.textContent = '';
+  try {
+    const blob = selected === 'jsonl' ? await current.exportJSONL() : new Blob([
+      selected === 'csv' ? toCSV(current.getTrace()) : toJSON(current.getTrace(), true),
+    ], { type: selected === 'csv' ? 'text/csv;charset=utf-8' : 'application/json;charset=utf-8' });
+    // A reset during asynchronous compression discards the old session's download.
+    if (recorder !== current) return;
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `awentrace-${current.sessionId}.${selected}${selected === 'jsonl' && current.gzip ? '.gz' : ''}`;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch {
+    if (recorder === current) exportError.textContent = 'Export failed. Try downloading JSON or CSV instead.';
+  }
 });

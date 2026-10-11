@@ -1,4 +1,5 @@
 import { isAscii, textDelta } from './text.js';
+import { createJSONLStream, toJSONLBlob } from './compression.js';
 import type { ClipboardEvidence, EditEvidence, EventKind, Json, Modifiers, MouseEvidence,
   Payloads, Recorder, Selection, Trace, TraceEvent, TraceHeader, TraceOptions } from './types.js';
 
@@ -43,6 +44,7 @@ const sameSelection = (a: Selection, b: Selection) =>
 /** Capture only the supplied textarea and session-level page lifecycle signals. */
 export function createTrace(options: TraceOptions): Recorder {
   const target = options.target;
+  const gzip = options.gzip ?? true;
   if (!target || target.tagName !== 'TEXTAREA') throw new TypeError('AwenTrace requires a textarea');
   const doc = target.ownerDocument;
   const win = doc.defaultView;
@@ -174,6 +176,7 @@ export function createTrace(options: TraceOptions): Recorder {
   const trace = (): Trace => structuredClone({ header, events, finalText: text, stopped });
   const recorder: Recorder = {
     sessionId,
+    gzip,
     get stopped() { return stopped; },
     get paused() { return paused; },
     pause() {
@@ -197,6 +200,19 @@ export function createTrace(options: TraceOptions): Recorder {
     },
     get eventCount() { return events.length; },
     getTrace() { sync('export'); return trace(); },
+    async exportJSONL() { return toJSONLBlob(recorder.getTrace(), { gzip }); },
+    streamJSONL() {
+      sync('export');
+      return createJSONLStream({
+        header, eventAt: index => events[index], complete: () => stopped,
+        footer: () => ({ finalText: text, stopped }),
+        subscribe(wake) {
+          if (stopped) return () => {};
+          listeners.add(wake);
+          return () => { listeners.delete(wake); };
+        },
+      }, gzip);
+    },
     subscribe(listener) {
       if (stopped || stopping) throw new Error('Recorder has stopped');
       listeners.add(listener);

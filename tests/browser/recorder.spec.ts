@@ -1,6 +1,106 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
+test('default gzip export captures an exact detached paused snapshot', async ({ page }) => {
+  await page.locator('#writer').pressSequentially('gzip snapshot');
+  const result = await page.evaluate(async () => {
+    const { recorder, toJSONL } = window.awenTest;
+    recorder.pause();
+    const expected = toJSONL(recorder.getTrace());
+    const exported = recorder.exportJSONL();
+    recorder.mark('after-export');
+    const blob = await exported;
+    const restored = await new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).text();
+    return { gzip: recorder.gzip, type: blob.type, matches: restored === expected,
+      footer: JSON.parse(restored.trim().split('\n').at(-1)!) };
+  });
+  expect(result).toEqual({ gzip: true, type: 'application/gzip', matches: true,
+    footer: { record: 'footer', finalText: 'gzip snapshot', stopped: false } });
+});
+
+test('gzip false streams history and new events in order across pause and reentrant stop', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const { createTrace, toJSONL } = window.awenTest;
+    window.awenTest.recorder.stop();
+    const recorder = createTrace({ target: document.querySelector<HTMLTextAreaElement>('#writer')!, gzip: false });
+    const reader = recorder.streamJSONL().pipeThrough(new TextDecoderStream()).getReader();
+    let output = (await reader.read()).value!;
+    const headerBeforeStop = JSON.parse(output).record === 'header' && !recorder.stopped;
+    const collecting = (async () => { for (;;) { const part = await reader.read(); if (part.done) break; output += part.value; } })();
+    recorder.pause(); recorder.mark('paused'); recorder.resume();
+    recorder.subscribe(event => { if (event.kind === 'marker' && event.payload.name === 'finish') recorder.stop(); });
+    recorder.mark('finish');
+    await collecting;
+    const trace = recorder.getTrace(), blob = await recorder.exportJSONL();
+    const afterStop = await new Response(recorder.streamJSONL()).text();
+    return { gzip: recorder.gzip, headerBeforeStop, matches: output === toJSONL(trace),
+      blobMatches: await blob.text() === output, streamAfterStopMatches: afterStop === output, type: blob.type };
+  });
+  expect(result).toEqual({ gzip: false, headerBeforeStop: true, matches: true,
+    blobMatches: true, streamAfterStopMatches: true, type: 'application/x-ndjson;charset=utf-8' });
+});
+
+test('native gzip delivers compressed live records before stop and round trips the entire stream', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const { recorder, toJSONL } = window.awenTest;
+    const reader = recorder.streamJSONL().pipeThrough(new DecompressionStream('gzip')).pipeThrough(new TextDecoderStream()).getReader();
+    const first = reader.read();
+    // Native gzip buffers small writes. Supply varied data beyond its buffers;
+    // the test deliberately makes no per-keystroke flush-latency claim.
+    let seed = 17;
+    for (let i = 0; i < 400; i++) {
+      let data = '';
+      for (let j = 0; j < 512; j++) { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; data += String.fromCharCode(32 + (seed >>> 16) % 95); }
+      recorder.mark('stream', data);
+    }
+    const firstPart = await first;
+    const beforeStop = !recorder.stopped && firstPart.value!.includes('"record":"header"');
+    recorder.stop();
+    let output = firstPart.value!;
+    for (;;) { const part = await reader.read(); if (part.done) break; output += part.value; }
+    return { beforeStop, matches: output === toJSONL(recorder.getTrace()) };
+  });
+  expect(result).toEqual({ beforeStop: true, matches: true });
+});
+
+test('cancelling live gzip streams or aborting their sink does not stop recording', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const { recorder, toJSONL } = window.awenTest;
+    // A second consumer must survive both direct cancellation and a sink abort.
+    const surviving = new Response(recorder.streamJSONL().pipeThrough(new DecompressionStream('gzip'))).text();
+    const reader = recorder.streamJSONL().getReader();
+    const pending = reader.read(); await reader.cancel(); await pending;
+    const abort = new AbortController();
+    const pumping = recorder.streamJSONL().pipeTo(new WritableStream({ write() {} }), { signal: abort.signal });
+    abort.abort();
+    let aborted = false;
+    try { await pumping; } catch { aborted = true; }
+    recorder.mark('still-recording');
+    const stopped = recorder.stopped, last = recorder.getTrace().events.at(-1)?.kind;
+    recorder.stop();
+    return { aborted, stopped, last, survivorMatches: await surviving === toJSONL(recorder.getTrace()) };
+  });
+  expect(result).toEqual({ aborted: true, stopped: false, last: 'marker', survivorMatches: true });
+});
+
+test('missing CompressionStream preserves recording and permits explicit plain JSONL', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const { recorder, createTrace } = window.awenTest;
+    const native = globalThis.CompressionStream;
+    Object.defineProperty(globalThis, 'CompressionStream', { value: undefined, configurable: true, writable: true });
+    try {
+      let error = '';
+      try { await recorder.exportJSONL(); } catch (caught) { error = String(caught); }
+      recorder.mark('capture-continues'); recorder.stop();
+      const plain = createTrace({ target: document.querySelector<HTMLTextAreaElement>('#writer')!, gzip: false });
+      const blob = await plain.exportJSONL(); plain.stop();
+      return { error, plain: (await blob.text()).startsWith('{"record":"header"') };
+    } finally { Object.defineProperty(globalThis, 'CompressionStream', { value: native }); }
+  });
+  expect(result.error).toContain('CompressionStream');
+  expect(result.plain).toBe(true);
+});
+
 const read = (page: Page) => page.evaluate(() => window.awenTest.recorder.getTrace());
 
 test.beforeEach(async ({ page }) => {

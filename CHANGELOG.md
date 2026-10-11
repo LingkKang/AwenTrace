@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Add dependency-free JSONL gzip exports using the browser's native `CompressionStream`, enabled by default through `createTrace({ gzip: true })`; `gzip: false` selects plain JSONL.
+- Add `recorder.exportJSONL()` for detached snapshot Blobs and `recorder.streamJSONL()` for existing and future events through stop, with pull-based consumption and cancellation cleanup.
+- Add `toJSONLBlob()` and `toJSONLStream()` for supplied snapshots. Existing JSON, JSONL and CSV string exports and the trace schema remain unchanged.
+- Change the demo's JSONL download to `.jsonl.gz`, with export error feedback and protection against downloading a discarded session after reset.
+- Document native compression requirements, buffering and lifecycle behavior; verify gzip interoperability, stream cancellation, recorder integration, demo downloads and installed-package use.
+
 ## 0.1.0
 
 - Framework-independent, zero-runtime-dependency TypeScript capture core for English/ASCII textarea writing.

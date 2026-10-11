@@ -31,11 +31,11 @@ test('the npm tarball works in an independent consumer', async t => {
 
   await t.test('includes linked documents and map sources without development artifacts', async () => {
     const files = packed.files.map(file => file.path);
-    for (const required of ['LICENSE', 'README.md', 'dist/index.js', 'dist/index.d.ts', 'src/index.ts', 'docs/architecture.md']) {
+    for (const required of ['LICENSE', 'README.md', 'CHANGELOG.md', 'dist/index.js', 'dist/index.d.ts', 'dist/compression.js', 'dist/compression.d.ts', 'src/index.ts', 'docs/architecture.md']) {
       assert.ok(files.includes(required), required);
     }
     for (const file of files) {
-      assert.ok(['LICENSE', 'README.md', 'package.json', 'docs/architecture.md'].includes(file) ||
+      assert.ok(['LICENSE', 'README.md', 'CHANGELOG.md', 'package.json', 'docs/architecture.md'].includes(file) ||
         /^dist\/.+\.(js|js\.map|d\.ts|d\.ts\.map)$/.test(file) || /^src\/.+\.ts$/.test(file),
       'Unexpected published file: ' + file);
       if (!file.endsWith('.map')) continue;
@@ -56,8 +56,8 @@ test('the npm tarball works in an independent consumer', async t => {
   await t.test('imports the public ESM entry point without a DOM', async () => {
     await writeFile(path.join(consumer, 'smoke.mjs'), `
       import assert from 'node:assert/strict';
-      import { createTrace, isAscii, applyDelta, reconstructText, toJSON, toJSONL, toCSV } from 'awentrace';
-      for (const fn of [createTrace, reconstructText, toJSON, toJSONL, toCSV]) assert.equal(typeof fn, 'function');
+      import { createTrace, isAscii, applyDelta, reconstructText, toJSON, toJSONL, toCSV, toJSONLBlob, toJSONLStream } from 'awentrace';
+      for (const fn of [createTrace, reconstructText, toJSON, toJSONL, toCSV, toJSONLBlob, toJSONLStream]) assert.equal(typeof fn, 'function');
       assert.equal(isAscii('hello'), true);
       assert.equal(applyDelta('hello', { start: 5, removed: '', inserted: '!', locationBasis: 'selection' }), 'hello!');
     `);
@@ -73,10 +73,13 @@ test('the npm tarball works in an independent consumer', async t => {
     }
     const recorder = createTrace({
       target: document.querySelector<HTMLTextAreaElement>('#writing')!,
+      gzip: true,
       onEvent(event) { if (event.kind === 'input') console.assert(typeof event.payload.inputType === 'string'); },
     });
     const snapshot: Trace = recorder.getTrace();
     reconstructText(snapshot);
+    const live: ReadableStream<Uint8Array> = recorder.streamJSONL();
+    void live.cancel();
     window.awenPackage = { recorder, reconstructText, toJSONL };
   `;
   await writeFile(path.join(consumer, 'consumer.ts'), consumerSource);
@@ -107,14 +110,20 @@ test('the npm tarball works in an independent consumer', async t => {
       await page.goto('http://localhost/');
       await page.waitForFunction(() => window.awenPackage);
       await page.locator('#writing').pressSequentially('Hello from npm');
-      const result = await page.evaluate(() => {
+      const result = await page.evaluate(async () => {
         const { recorder, reconstructText, toJSONL } = window.awenPackage;
         const trace = recorder.stop();
+        const blob = await recorder.exportJSONL();
+        const restored = await new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).text();
         return { text: reconstructText(trace), stopped: trace.stopped, moves: trace.header.capturePointerMoves,
+          gzip: recorder.gzip, blobType: blob.type, roundTrip: restored === toJSONL(trace),
           inputCount: trace.events.filter(event => event.kind === 'input').length,
           footer: JSON.parse(toJSONL(trace).trim().split('\n').at(-1)) };
       });
       assert.equal(result.text, 'Hello from npm');
+      assert.equal(result.gzip, true);
+      assert.equal(result.blobType, 'application/gzip');
+      assert.equal(result.roundTrip, true);
       assert.equal(result.stopped, true);
       assert.equal(result.moves, false);
       assert.ok(result.inputCount > 0);

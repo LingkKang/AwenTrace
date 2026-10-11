@@ -2,18 +2,21 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { reconstructText } from '../../src/index.js';
 import type { Trace } from '../../src/index.js';
+import { gunzipSync } from 'node:zlib';
 
 async function downloadText(page: Page, format: string) {
   const pending = page.waitForEvent('download');
-  await page.getByRole('button', { name: `Download ${format.toUpperCase()}`, exact: true }).click();
+  await page.getByRole('button', { name: `Download ${format.toUpperCase()}${format === 'jsonl' ? ' gzip' : ''}`, exact: true }).click();
   const download = await pending;
-  expect(download.suggestedFilename()).toMatch(new RegExp(`^awentrace-.+\\.${format}$`));
+  expect(download.suggestedFilename()).toMatch(new RegExp(`^awentrace-.+\\.${format}${format === 'jsonl' ? '\\.gz' : ''}$`));
   const stream = await download.createReadStream();
   if (!stream) throw new Error('Download stream unavailable');
   const chunks: Buffer[] = [];
   for await (const chunk of stream) chunks.push(Buffer.from(chunk));
   expect(await download.failure()).toBeNull();
-  return Buffer.concat(chunks).toString('utf8');
+  const bytes = Buffer.concat(chunks);
+  if (format === 'jsonl') expect([...bytes.subarray(0, 2)]).toEqual([31, 139]);
+  return (format === 'jsonl' ? gunzipSync(bytes) : bytes).toString('utf8');
 }
 
 test.beforeEach(async ({ page }) => { await page.goto('./'); });
@@ -75,7 +78,7 @@ test('start, pause, resume and reset preserve or clear the appropriate state', a
   await expect(page.locator('#replay')).toBeDisabled();
   await expect(page.locator('#replay-index')).toHaveText('0');
   await expect(page.locator('#replay-text')).toHaveClass('placeholder');
-  await expect(page.getByRole('button', { name: 'Download JSONL', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Download JSONL gzip', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Download CSV', exact: true })).toBeDisabled();
   await page.screenshot({ path: testInfo.outputPath('demo-ready.png'), fullPage: true });
   await page.getByRole('button', { name: 'Start a session', exact: true }).click();

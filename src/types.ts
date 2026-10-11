@@ -185,7 +185,12 @@ export interface Trace {
   stopped: boolean;
 }
 
-export interface TraceOptions {
+export interface JSONLExportOptions {
+  /** Use native CompressionStream('gzip'). Defaults to true. */
+  gzip?: boolean;
+}
+
+export interface TraceOptions extends JSONLExportOptions {
   target: HTMLTextAreaElement;
   sessionId?: string;
   metadata?: Json;
@@ -197,6 +202,8 @@ export interface TraceOptions {
 
 export interface Recorder {
   readonly sessionId: string;
+  /** Compression setting for exportJSONL() and streamJSONL(). */
+  readonly gzip: boolean;
   readonly stopped: boolean;
   readonly paused: boolean;
   readonly eventCount: number;
@@ -205,6 +212,10 @@ export interface Recorder {
   /** Resume capture; any unobserved text change becomes a checkpoint. */
   resume(): void;
   getTrace(): Trace;
+  /** Export a detached snapshot as .jsonl.gz (default) or plain .jsonl. */
+  exportJSONL(): Promise<Blob>;
+  /** Replay existing events and stream future ones; stop() emits the footer and closes. */
+  streamJSONL(): ReadableStream<Uint8Array<ArrayBuffer>>;
   subscribe(listener: (event: TraceEvent) => void): () => void;
   mark(name: string, data?: Json): void;
   /** Call after programmatic value changes; also runs at observable boundaries. */
