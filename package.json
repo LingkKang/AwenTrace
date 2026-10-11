@@ -13,6 +13,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./analysis": {
+      "types": "./dist/analysis/index.d.ts",
+      "import": "./dist/analysis/index.js",
+      "default": "./dist/analysis/index.js"
     }
   },
   "types": "./dist/index.d.ts",
@@ -32,7 +37,7 @@
     "test:pages": "npm run build:demo && playwright test --config playwright.pages.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.check.json",
     "dev": "vite --host 0.0.0.0",
-    "test:unit": "npm run build && node --test tests/core.test.mjs tests/compression.test.mjs",
+    "test:unit": "npm run build && node --test tests/core.test.mjs tests/compression.test.mjs tests/analysis.test.mjs",
     "test:browser": "playwright test",
     "test:package": "node --test tests/package.test.mjs",
     "test": "npm run typecheck && npm run test:unit && npm run test:browser && npm run test:package",

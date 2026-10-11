@@ -5,8 +5,9 @@ import { createRequire } from 'node:module';
 import { mkdtemp, mkdir, readFile, writeFile, access, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from '@playwright/test';
+import { build } from 'vite';
 
 const repository = fileURLToPath(new URL('../', import.meta.url));
 const require = createRequire(import.meta.url);
@@ -31,7 +32,7 @@ test('the npm tarball works in an independent consumer', async t => {
 
   await t.test('includes linked documents and map sources without development artifacts', async () => {
     const files = packed.files.map(file => file.path);
-    for (const required of ['LICENSE', 'README.md', 'CHANGELOG.md', 'dist/index.js', 'dist/index.d.ts', 'dist/compression.js', 'dist/compression.d.ts', 'src/index.ts', 'docs/architecture.md']) {
+    for (const required of ['LICENSE', 'README.md', 'CHANGELOG.md', 'dist/index.js', 'dist/index.d.ts', 'dist/compression.js', 'dist/compression.d.ts', 'dist/analysis/index.js', 'dist/analysis/index.d.ts', 'dist/analysis/types.d.ts', 'src/analysis/pauses.ts', 'src/index.ts', 'docs/architecture.md']) {
       assert.ok(files.includes(required), required);
     }
     for (const file of files) {
@@ -57,7 +58,11 @@ test('the npm tarball works in an independent consumer', async t => {
     await writeFile(path.join(consumer, 'smoke.mjs'), `
       import assert from 'node:assert/strict';
       import { createTrace, isAscii, applyDelta, reconstructText, toJSON, toJSONL, toCSV, toJSONLBlob, toJSONLStream } from 'awentrace';
+      import * as capture from 'awentrace';
+      import { analyzePauses } from 'awentrace/analysis';
       for (const fn of [createTrace, reconstructText, toJSON, toJSONL, toCSV, toJSONLBlob, toJSONLStream]) assert.equal(typeof fn, 'function');
+      assert.equal(typeof analyzePauses, 'function');
+      assert.equal('analyzePauses' in capture, false);
       assert.equal(isAscii('hello'), true);
       assert.equal(applyDelta('hello', { start: 5, removed: '', inserted: '!', locationBasis: 'selection' }), 'hello!');
     `);
@@ -83,11 +88,43 @@ test('the npm tarball works in an independent consumer', async t => {
     window.awenPackage = { recorder, reconstructText, toJSONL };
   `;
   await writeFile(path.join(consumer, 'consumer.ts'), consumerSource);
+  await writeFile(path.join(consumer, 'analyst.ts'), `
+    import type { Trace } from 'awentrace';
+    import { analyzePauses, type PauseAnalysis, type PauseAnalysisOptions } from 'awentrace/analysis';
+    declare const trace: Trace;
+    const options: PauseAnalysisOptions = { thresholdMs: 1500, excludeEditorBlur: true };
+    const result: PauseAnalysis = analyzePauses(trace, options);
+    const mean: number | null = result.summary.meanDurationMs;
+    void mean;
+  `);
 
   await t.test('resolves public TypeScript declarations with strict checking', () => {
     run(path.resolve(path.dirname(require.resolve('typescript/package.json')), require('typescript/package.json').bin.tsc), [
-      '--noEmit', '--strict', '--target', 'ES2022', '--module', 'NodeNext', '--moduleResolution', 'NodeNext', 'consumer.ts',
+      '--noEmit', '--strict', '--target', 'ES2022', '--module', 'NodeNext', '--moduleResolution', 'NodeNext', 'consumer.ts', 'analyst.ts',
     ], consumer);
+  });
+
+  await t.test('capture and analysis consumers have separate runtime dependency graphs', async () => {
+    for (const [name, source] of [
+      ['capture-only', "export { createTrace } from 'awentrace';"],
+      ['analysis-only', "export { analyzePauses } from 'awentrace/analysis';"],
+    ]) {
+      const entry = path.join(consumer, `${name}.js`);
+      await writeFile(entry, source);
+      const built = await build({ root: consumer, configFile: false, logLevel: 'silent',
+        build: { write: false, minify: false, lib: { entry, formats: ['es'] } } });
+      const modules = [built].flat().flatMap(result => result.output)
+        .filter(chunk => chunk.type === 'chunk').flatMap(chunk => Object.keys(chunk.modules))
+        .map(id => id.replaceAll('\\', '/'));
+      assert.ok(modules.some(id => id.includes('/awentrace/dist/')), 'bundle uses the installed package');
+      if (name === 'capture-only') {
+        assert.ok(modules.some(id => id.endsWith('/recorder.js')));
+        assert.ok(modules.every(id => !id.includes('/analysis/')));
+      } else {
+        assert.ok(modules.some(id => id.endsWith('/analysis/pauses.js')));
+        assert.ok(modules.every(id => !/\/(recorder|compression)\.js$/.test(id)));
+      }
+    }
   });
 
   await t.test('bundles and records browser input through the installed package', async () => {
@@ -115,7 +152,7 @@ test('the npm tarball works in an independent consumer', async t => {
         const trace = recorder.stop();
         const blob = await recorder.exportJSONL();
         const restored = await new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).text();
-        return { text: reconstructText(trace), stopped: trace.stopped, moves: trace.header.capturePointerMoves,
+        return { trace, text: reconstructText(trace), stopped: trace.stopped, moves: trace.header.capturePointerMoves,
           gzip: recorder.gzip, blobType: blob.type, roundTrip: restored === toJSONL(trace),
           inputCount: trace.events.filter(event => event.kind === 'input').length,
           footer: JSON.parse(toJSONL(trace).trim().split('\n').at(-1)) };
@@ -128,6 +165,11 @@ test('the npm tarball works in an independent consumer', async t => {
       assert.equal(result.moves, false);
       assert.ok(result.inputCount > 0);
       assert.deepEqual(result.footer, { record: 'footer', finalText: 'Hello from npm', stopped: true });
+      const { analyzePauses } = await import(pathToFileURL(path.join(installed, 'dist/analysis/index.js')).href);
+      const analysis = analyzePauses(result.trace);
+      assert.equal(analysis.summary.eligibleIntervalCount, result.inputCount - 1);
+      assert.equal(analysis.sourceStopped, true);
+      assert.deepEqual(analysis.excludedIntervals, []);
     } finally { await browser.close(); }
   });
 });

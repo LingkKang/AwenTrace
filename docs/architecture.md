@@ -10,9 +10,12 @@
 | `src/text.ts` | ASCII checks, edit deltas and reconstruction |
 | `src/export.ts` | JSON, JSONL and CSV serialization |
 | `src/compression.ts` | Native gzip, pull-based JSONL streams and Blob exports |
+| `src/analysis/index.ts` | Independent `awentrace/analysis` public entry point |
+| `src/analysis/pauses.ts`, `types.ts`, `timeline.ts` | Pure pause analysis, result contracts and shared timeline validation |
 | `index.html`, `demo/` | Demo markup, controls and styles |
 | `tests/core.test.mjs` | Text reconstruction and export tests |
 | `tests/compression.test.mjs` | Compression, stream backpressure, cancellation and cleanup tests |
+| `tests/analysis.test.mjs` | Pause measurements, interruption/range rules and evidence validation |
 | `tests/package.test.mjs` | Packed files, installation, declarations and browser consumption |
 | `tests/browser/fixtures/` | Minimal textarea fixture and test-only API bridge |
 | `tests/browser/recorder.spec.ts` | Library browser tests |
@@ -88,7 +91,91 @@ The library does not lock the editor. Resuming after a text change adds a checkp
 
 Events live in memory. Hosts can persist them through `onEvent` or `subscribe`, keeping the session header, stable IDs and sequence. Page lifecycle events cannot guarantee delivery after a crash or forced termination.
 
-Analysis should consume traces and produce separate results with algorithm versions, parameters and source event IDs. Manual recording suspension is distinct from an inferred writing pause. See the [README TODO](../README.md#todo) for planned capabilities and validation.
+Analysis consumes traces and produces separate results with algorithm versions,
+parameters and source event IDs. The package exports `awentrace/analysis`
+independently; the root capture entry never imports or re-exports analysis code.
+Analysis modules only depend on data types and DOM-free text/timeline helpers,
+not the recorder or export/compression pipeline. There are no runtime dependencies,
+DOM calls, network requests, or implicit persistence. Future burst/revision modules
+can be added behind this entry without growing the capture dependency graph.
+
+### Pause analysis
+
+`analyzePauses(trace, options?)` returns a detached `PauseAnalysis` with algorithm
+`awentrace/pause-analysis`, algorithm version `1`, and basis `text-change`.
+It accepts a complete `Trace` object, including a live snapshot with `stopped: false`.
+Decode/import exported data into that trace shape before analysis; this API does
+not parse JSONL or gzip. Analysis uses captured `elapsedMs`, never `wallTime`,
+`domTimeStamp`, server receipt times or the current clock.
+
+An anchor is an `input` event with a non-null text delta. Consecutive anchors form
+candidate intervals. Paste, cut, deletion and replacement are edits; keyboard,
+pointer, selection, marker and nonchanging input events do not reset the interval.
+Consequently a pause here means absence of observed text changes, not absence of
+all interaction, and does not establish a cognitive state. This is not an
+implementation of Inputlog's measurement algorithms or linguistic pause categories.
+
+Options and boundaries:
+
+- `thresholdMs` defaults to 2000; it must be finite and strictly positive.
+  Eligible intervals with duration **>=** this threshold are returned in `pauses`.
+- `range: { startMs, endMs }` uses session-relative milliseconds and defaults to
+  `[0, last captured event time]`. Bounds must be finite and satisfy
+  `0 <= startMs <= endMs`. Both anchor times must lie within the range, inclusively.
+  Intervals crossing a range boundary are omitted, not clipped. The full trace is
+  still validated and scanned, so an earlier blur or suspension remains effective.
+  Hosts may use marker times to specify a stage; markers do not split intervals
+  automatically. Initial latency and trailing inactivity lack two edit anchors
+  and are never inferred as complete pauses, even in stopped traces.
+- `excludeHidden` and `excludeWindowBlur` default to true. Hidden visibility or a
+  pagehide/pageshow gap excludes an interval; window focus/blur is tracked
+  independently. The header supplies initial visibility; initial window focus is
+  unknown, and only observed window transitions are used. Restored visibility
+  alone does not close a pagehide gap. Missing recovery events are not invented.
+- `excludeEditorBlur` defaults to false; enabling it excludes intervals that
+  contain an event whose editor state is unfocused. An editor losing focus does
+  not imply that the participant left the page: they may be reading feedback.
+- A recording `pause`/`resume`, a text-changing `checkpoint`, or unsupported input
+  always excludes the affected interval. A checkpoint cannot reveal the timing of
+  intermediate unobserved edits. An unsupported text-changing input is still an
+  anchor and excludes both adjacent intervals; unsupported nonchanging input
+  excludes its containing interval. These exclusions cannot be disabled.
+
+Exclusion evidence is retained across each entire candidate interval, including
+its endpoints. Reasons accumulate without double-counting overlapping states;
+an interrupted interval is excluded as a whole. We do not subtract the off-page
+duration to invent a shorter continuous pause. `excludedIntervals` contains all
+excluded in-range candidates, including those shorter than the threshold. Reasons
+are machine-readable and deterministically ordered. Recording suspension is a
+capture gap and must not be used to mark a participant's ordinary writing pause.
+
+Each interval preserves start/end event IDs and sequences, elapsed times,
+duration, boundary revisions, the selection after the preceding edit and the
+selection before the following edit (null if unavailable). Positions retain the
+trace's UTF-16 code-unit convention and refer to their respective text versions;
+no word/sentence location or unobserved caret is inferred. Raw events retain
+additional evidence such as inferred edit locations, input types and markers.
+
+`summary` reports pause count and total/mean/median/min/max durations, all eligible
+interval counts/durations, and excluded interval counts/durations. `pauseRatio`
+is `totalDurationMs / eligibleDurationMs`, **not** a proportion of the entire task
+or recording duration. With no pauses, total/count are zero and distribution
+statistics are null. With no positive eligible duration, the proportion is null.
+
+Validation calls `reconstructText` to verify session IDs, sequence, revisions,
+patch contents and final text; it also rejects missing/duplicate event IDs and
+negative, nonfinite or decreasing elapsed timestamps. Equal timestamps are valid.
+It never sorts, repairs, mutates or silently discards corrupt evidence. This is
+structural validation, not a clock-accuracy or tamper-resistance guarantee. Input
+support retains the recorder's current ASCII limitations. Runtime is linear in
+the event scan plus sorting pause durations for the median and existing text
+reconstruction costs. Results record the source event count and stopped state;
+retain the original trace alongside them for reproducibility.
+
+Package tests verify the installed analysis subpath and its TypeScript types,
+analyze a real browser recording, and inspect bundled module graphs to ensure
+capture never includes analysis and analysis never includes the recorder or gzip.
+See the [README TODO](../README.md#todo) for remaining analysis capabilities.
 
 ## JSONL compression and streaming
 

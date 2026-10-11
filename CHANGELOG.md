@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add the independent, DOM-free `awentrace/analysis` entry with `analyzePauses(trace, options)`, leaving the capture entry's runtime dependency graph unchanged.
+- Add configurable inter-edit pause thresholds and time ranges, interruption/unsupported-input exclusions, source-event references, versioned results and descriptive statistics. Preserve missing evidence and exclude incomplete boundary intervals.
+- Verify pause semantics, immutable source handling, installed subpath/types, browser-recording analysis and separate capture/analysis bundles; document measurement scope and remaining burst/linguistic analysis work.
 - Add dependency-free JSONL gzip exports using the browser's native `CompressionStream`, enabled by default through `createTrace({ gzip: true })`; `gzip: false` selects plain JSONL.
 - Add `recorder.exportJSONL()` for detached snapshot Blobs and `recorder.streamJSONL()` for existing and future events through stop, with pull-based consumption and cancellation cleanup.
 - Add `toJSONLBlob()` and `toJSONLStream()` for supplied snapshots. Existing JSON, JSONL and CSV string exports and the trace schema remain unchanged.

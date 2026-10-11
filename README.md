@@ -50,6 +50,50 @@ The package provides ESM JavaScript and TypeScript declarations. Attach the reco
 
 See [API details and event format](docs/architecture.md#public-api) for callback behavior and trace semantics. This document is also included at `node_modules/awentrace/docs/architecture.md`.
 
+### Offline pause analysis
+
+Capture and analysis have separate entry points. Student pages can keep importing
+only `createTrace` from `awentrace`; researcher pages or Node.js scripts can load
+the DOM-free analysis module without creating a recorder:
+
+```ts
+import type { Trace } from 'awentrace';
+import { analyzePauses } from 'awentrace/analysis';
+
+function analyzeSession(trace: Trace) {
+  return analyzePauses(trace, {
+    thresholdMs: 2000,
+    excludeHidden: true,
+    excludeWindowBlur: true,
+    excludeEditorBlur: false,
+    // Optional: include only complete intervals within a stage/marker window.
+    // range: { startMs: 1000, endMs: 60000 },
+  });
+}
+```
+
+The first algorithm measures intervals between **actual text-changing input
+events**, including paste, cut, deletion and replacement. This is an inter-edit
+measure, not a keydown-to-keydown or key-release-to-keydown measure. A duration
+equal to the threshold counts as a pause. The 2000 ms default is a configurable
+software default, not a validated research threshold.
+
+Results contain `pauses`, `excludedIntervals`, `summary`, the resolved options,
+source session/event information and an algorithm version. Each interval links
+its bounding events, revisions and observed selections. Statistics include count,
+total/mean/median/min/max duration and the pause proportion of eligible inter-edit
+time. Empty means and proportions without a denominator are `null`.
+
+Recording suspension, unobserved programmatic changes and unsupported input are
+always excluded; page hiding and window blur are excluded by default. Editor blur
+is optional so within-page feedback viewing can remain in the observation window.
+Entire interrupted intervals are excluded, without subtracting time or stitching
+fragments. Initial and trailing inactivity are not counted as complete pauses.
+Analysis neither mutates the trace nor performs network/storage operations.
+
+See [pause-analysis semantics](docs/architecture.md#pause-analysis) for validation,
+range boundaries and limitations. `analyzeBursts` is not implemented yet.
+
 ### JSONL gzip and streaming
 
 ```ts
@@ -118,5 +162,5 @@ The following items are not yet supported or fully validated:
 - **Editing workflows:** support and test undo/redo, drag-and-drop, autocorrection, rich text and mobile input.
 - **Measurement:** evaluate timing accuracy, interrupted key sequences, clipboard/menu actions and ambiguous edit locations across browsers.
 - **Persistence:** add durable storage, crash/reload recovery and long-session performance checks; explore server synchronization and cross-tab sessions.
-- **Analysis:** add writing summaries, pause and typing-burst analysis, revision tracking and fluency charts.
+- **Analysis:** extend inter-edit pause analysis with validated linguistic pause locations and additional measurement bases; add typing-burst analysis, revision tracking, writing summaries and fluency charts.
 - **Interoperability:** explore IDFX export and compatibility with other writing-process tools.
