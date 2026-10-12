@@ -119,3 +119,34 @@ test('latest 200 records, text history and downloads retain the complete paused 
   await expect(page.locator('#event-count')).toHaveText('0');
   await expect(page.getByRole('button', { name: 'Start a session', exact: true })).toBeVisible();
 });
+
+test('Unicode counts, initial-text replay and downloads preserve English punctuation and emoji', async ({ page }) => {
+  const initial = '😀 e\u0301 don’t—stop';
+  const writer = page.getByRole('textbox', { name: 'Writing', exact: true });
+  await writer.evaluate((el: HTMLTextAreaElement, value) => { el.value = value; }, initial);
+  await page.getByRole('button', { name: 'Start a session', exact: true }).click();
+  await expect(page.locator('#text-count')).toHaveText('14 characters · 3 words');
+  await writer.press('End');
+  await page.keyboard.insertText(' 👩🏽‍💻');
+  await expect(page.locator('#text-count')).toHaveText('16 characters · 3 words');
+  await page.getByRole('button', { name: 'Pause recording', exact: true }).click();
+  const trace: Trace = JSON.parse(await downloadText(page, 'json'));
+  expect(reconstructText(trace)).toBe(initial + ' 👩🏽‍💻');
+  await page.locator('#replay').focus();
+  await page.keyboard.press('Home');
+  await expect(page.locator('#replay-text')).toHaveText(initial);
+  await page.keyboard.press('End');
+  await expect(page.locator('#replay-text')).toHaveText(trace.finalText);
+  const jsonl = (await downloadText(page, 'jsonl')).trim().split('\n').map(line => JSON.parse(line));
+  expect(jsonl[0].initialText).toBe(initial);
+  expect(jsonl.at(-1).finalText).toBe(trace.finalText);
+  expect(await downloadText(page, 'csv')).toContain('👩🏽‍💻');
+});
+
+test('demo labels fallback counts honestly when Intl.Segmenter is unavailable', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(Intl, 'Segmenter', { value: undefined }));
+  await page.reload();
+  await page.getByRole('button', { name: 'Start a session', exact: true }).click();
+  await page.keyboard.insertText('😀 e\u0301');
+  await expect(page.locator('#text-count')).toHaveText('4 code points · 2 space-separated tokens');
+});

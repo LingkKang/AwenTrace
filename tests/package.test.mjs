@@ -74,7 +74,18 @@ test('the npm tarball works in an independent consumer', async t => {
     const recorder = createTrace({
       target: document.querySelector<HTMLTextAreaElement>('#writing')!,
       gzip: true,
-      onEvent(event) { if (event.kind === 'input') console.assert(typeof event.payload.inputType === 'string'); },
+      onEvent(event) {
+        if (event.kind === 'input') {
+          console.assert(typeof event.payload.inputType === 'string');
+          const start: number | null | undefined = event.payload.compositionStartSequence;
+          void start;
+        }
+        if (event.kind === 'compositionend') {
+          const data: string = event.payload.data;
+          const start: number | null = event.payload.startSequence;
+          void data; void start;
+        }
+      },
     });
     const snapshot: Trace = recorder.getTrace();
     reconstructText(snapshot);
@@ -92,7 +103,7 @@ test('the npm tarball works in an independent consumer', async t => {
 
   await t.test('bundles and records browser input through the installed package', async () => {
     await writeFile(path.join(consumer, 'index.html'),
-      '<textarea id="writing"></textarea><script type="module" src="./consumer.ts"></script>');
+      '<meta charset="utf-8"><textarea id="writing">It’s café 😀 — </textarea><script type="module" src="./consumer.ts"></script>');
     run(path.join(path.dirname(require.resolve('vite/package.json')), 'bin/vite.js'), ['build'], consumer);
     const browser = await chromium.launch({ headless: true });
     try {
@@ -109,25 +120,33 @@ test('the npm tarball works in an independent consumer', async t => {
       });
       await page.goto('http://localhost/');
       await page.waitForFunction(() => window.awenPackage);
+      await page.locator('#writing').focus();
+      await page.locator('#writing').press('Control+End');
       await page.locator('#writing').pressSequentially('Hello from npm');
+      await page.keyboard.insertText(' 👩🏽‍💻');
       const result = await page.evaluate(async () => {
         const { recorder, reconstructText, toJSONL } = window.awenPackage;
         const trace = recorder.stop();
         const blob = await recorder.exportJSONL();
         const restored = await new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).text();
-        return { text: reconstructText(trace), stopped: trace.stopped, moves: trace.header.capturePointerMoves,
+        return { text: reconstructText(trace), initialText: trace.header.initialText, supportedInput: trace.header.supportedInput,
+          supported: trace.events.filter(event => event.kind === 'input').every(event => event.payload.supported),
+          stopped: trace.stopped, moves: trace.header.capturePointerMoves,
           gzip: recorder.gzip, blobType: blob.type, roundTrip: restored === toJSONL(trace),
           inputCount: trace.events.filter(event => event.kind === 'input').length,
           footer: JSON.parse(toJSONL(trace).trim().split('\n').at(-1)) };
       });
-      assert.equal(result.text, 'Hello from npm');
+      assert.equal(result.text, 'It’s café 😀 — Hello from npm 👩🏽‍💻');
+      assert.equal(result.initialText, 'It’s café 😀 — ');
+      assert.equal(result.supportedInput, 'unicode');
+      assert.equal(result.supported, true);
       assert.equal(result.gzip, true);
       assert.equal(result.blobType, 'application/gzip');
       assert.equal(result.roundTrip, true);
       assert.equal(result.stopped, true);
       assert.equal(result.moves, false);
       assert.ok(result.inputCount > 0);
-      assert.deepEqual(result.footer, { record: 'footer', finalText: 'Hello from npm', stopped: true });
+      assert.deepEqual(result.footer, { record: 'footer', finalText: result.text, stopped: true });
     } finally { await browser.close(); }
   });
 });

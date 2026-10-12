@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Support Unicode initial text, edits and exports with safe surrogate-pair boundaries and unchanged UTF-16 positions.
+- Record composition events and interruptions, flagging uncertain edits without invalidating later English input.
+- Use grapheme character counts and English word segmentation in the demo.
+
 ## v0.2.0
 
 - Add dependency-free JSONL gzip exports using native `CompressionStream`, enabled by default; `gzip: false` selects plain JSONL.

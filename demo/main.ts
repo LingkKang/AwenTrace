@@ -25,6 +25,8 @@ let recorder: Recorder | null = null;
 let events: TraceEvent[] = [];
 let frame = 0;
 let followHistory = true;
+const graphemes = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter('en', { granularity: 'grapheme' }) : null;
+const wordSegments = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter('en', { granularity: 'word' }) : null;
 
 function showHistory(text: string) {
   replayText.textContent = text || '(empty text)';
@@ -34,8 +36,12 @@ function showHistory(text: string) {
 function render() {
   frame = 0;
   eventCount.textContent = String(events.length);
-  const words = writer.value.trim() ? writer.value.trim().split(/\s+/).length : 0;
-  textCount.textContent = `${writer.value.length} characters · ${words} words`;
+  const characters = graphemes ? [...graphemes.segment(writer.value)].length : [...writer.value].length;
+  const words = wordSegments ? [...wordSegments.segment(writer.value)].filter(part => part.isWordLike).length :
+    (writer.value.trim() ? writer.value.trim().split(/\s+/).length : 0);
+  textCount.textContent = `${characters} ${graphemes ? 'characters' : 'code points'} · ${words} ${wordSegments ? 'words' : 'space-separated tokens'}`;
+  textCount.title = graphemes ? 'Characters use grapheme clusters; words use English word segmentation.' :
+    'This browser lacks text segmentation; counts use code points and whitespace-separated tokens.';
   rows.replaceChildren();
   if (!events.length) {
     const row = rows.insertRow();
@@ -116,7 +122,7 @@ reset.addEventListener('click', () => {
 replay.addEventListener('input', () => {
   const limit = Number(replay.value);
   followHistory = limit === events.length;
-  let text = '';
+  let text = events[0]?.kind === 'start' ? events[0].payload.text : '';
   for (const event of events.slice(0, limit)) {
     if ((event.kind === 'input' || event.kind === 'checkpoint') && event.payload.delta) {
       text = applyDelta(text, event.payload.delta);

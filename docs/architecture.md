@@ -7,7 +7,7 @@
 | `src/index.ts` | Public ESM entry point |
 | `src/types.ts` | Versioned event types and public interfaces |
 | `src/recorder.ts` | Browser listeners, event ordering and lifecycle |
-| `src/text.ts` | ASCII checks, edit deltas and reconstruction |
+| `src/text.ts` | Content checks, UTF-16 edit deltas and reconstruction |
 | `src/export.ts` | JSON, JSONL and CSV serialization |
 | `src/compression.ts` | Native gzip, pull-based JSONL streams and Blob exports |
 | `index.html`, `demo/` | Demo markup, controls and styles |
@@ -16,6 +16,7 @@
 | `tests/package.test.mjs` | Packed files, installation, declarations and browser consumption |
 | `tests/browser/fixtures/` | Minimal textarea fixture and test-only API bridge |
 | `tests/browser/recorder.spec.ts` | Library browser tests |
+| `tests/browser/unicode.spec.ts` | Unicode edits/exports and composition boundary tests |
 | `tests/browser/demo.spec.ts` | Demo controls, history and download tests |
 
 The core has no runtime dependencies. It observes the editor without rendering UI, changing text or sending data over a network. Importing it in Node is safe; creating a recorder requires a browser textarea.
@@ -45,6 +46,14 @@ Callbacks run synchronously and receive deeply frozen events. Callback errors go
 
 A trace is `{ header, events, finalText, stopped }`, with schema `awentrace/0.1`. Each recorder starts a new session and clock. The header stores initial text/selection, capture settings, environment, `performanceTimeOrigin` and `startPerformanceMs`.
 
+Current capture emits `supportedInput: 'unicode'`; older traces used `'ascii'`.
+The additive composition events/fields retain the existing reconstruction schema:
+only input/checkpoint deltas change the reconstructed text. Readers should tolerate
+unknown event kinds. Composition fields are optional in the public types because
+older traces lack them; absence is not evidence that no composition occurred.
+`recorderVersion` follows the package release version; changes under Unreleased
+are development changes until the next version is assigned.
+
 | Event field | Meaning |
 | --- | --- |
 | `id`, `sequence` | Session-scoped ID and consecutive order, starting at 1 |
@@ -54,7 +63,7 @@ A trace is `{ header, events, finalText, stopped }`, with schema `awentrace/0.1`
 | `domTimeStamp` | Native timestamp, or null for generated records |
 | `trusted` | Native `isTrusted`, or null for generated records |
 | `defaultPrevented` | Cancellation state when observed |
-| `state` | Selection, text length, revision, ASCII status, focus and scroll |
+| `state` | Selection, UTF-16 text length, revision, descriptive ASCII status, observed composition state, focus and scroll |
 
 Timestamps do not guarantee millisecond accuracy, synchronization between computers or tamper resistance. Events remain in chronological order in all exports. JSONL wraps them with a header and a final-text/stop-status footer.
 
@@ -64,11 +73,60 @@ An `input` event carries a replacement delta: remove `removed` at `start`, then 
 
 `beforeInputSequence` links preceding intent when available; `selectionBefore` is null without reliable evidence. Beforeinput evidence expires after the current event-loop task, and cancelled evidence is not reused. Observing beforeinput alone does not establish an edit.
 
-When selection and text agree, the delta is anchored to that selection. Otherwise, a prefix/suffix comparison yields a reconstructable replacement labeled `text-difference`; repeated text can make the actual edit location ambiguous.
+When selection and text agree without splitting a surrogate pair, the delta is anchored to that selection. Otherwise, a prefix/suffix comparison yields a reconstructable replacement labeled `text-difference`; repeated text can make the actual edit location ambiguous. Inferred replacement boundaries expand as needed to avoid splitting valid surrogate pairs. The observed selections remain unchanged. This is code-point boundary protection, not grapheme segmentation: browsers can legitimately edit combining marks or parts of an emoji sequence.
 
-Programmatic changes observed without input events produce `checkpoint` records. Hosts should call `sync()` after setting `textarea.value`; intermediate unobserved changes cannot be recovered. Unsupported input retains its text patch and issue flags. Non-ASCII initial text is rejected.
+Programmatic changes observed without input events produce `checkpoint` records. Hosts should call `sync()` after setting `textarea.value`; intermediate unobserved changes cannot be recovered. Unsupported input retains its text patch and issue flags. Initial text may contain Unicode. No normalization, punctuation replacement or language filtering is applied. The stored value is the textarea's DOM value, including any line-ending processing already performed by the browser. Even unpaired UTF-16 surrogates are preserved; JSON serialization escapes them before UTF-8 transport.
+
+`supported` describes a supported non-composition edit family, not language,
+keystroke completeness or suitability for every analysis. Ordinary insertion,
+paste, `insertReplacementText` and supported deletions are not rejected because
+of Unicode content. Missing beforeinput and inferred locations remain separate
+issue flags. Unknown input types and external checkpoints remain unsupported.
 
 `reconstructText` checks session IDs, sequence, revision transitions, patch contents, checkpoints and final text. It detects structural inconsistencies, not maliciously rewritten logs.
+
+## Composition evidence
+
+The recorder observes browser composition events without controlling the system
+IME. `compositionstart`, `compositionupdate` and `compositionend` payloads contain
+`data`, the observed selection and `startSequence`. The latter links to the start
+event, or is null when the start was not observed. Updates may precede a DOM edit;
+composition events themselves never apply text deltas. Empty end data is recorded
+as observed, not interpreted as proof of cancellation.
+
+For edit evidence, `nativeComposing` preserves the browser's `isComposing` value
+(null for checkpoints). `composing` also accounts for a tracked composition or a
+composition input type. `compositionStartSequence` supplies the observed start
+link when available. `state.composing` describes the currently tracked session.
+Composition edits carry `composition-out-of-scope` and `supported: false` while
+their exact text patches remain reconstructable.
+
+The final input can occur before or after `compositionend`. After an end event,
+the recorder conservatively flags edits in the remainder of that task with
+`composition-boundary`. At a zero-delay timer boundary it reconciles a changed
+value with a checkpoint if no input captured it, then clears the boundary. A fresh
+non-composing keydown also clears the tail after reconciliation. This is a bounded
+observation heuristic, not a universal IME commit detector: later-task commits
+without composition indicators cannot be reliably identified. Consumers must
+retain the raw composition boundaries rather than treating `supported` alone as
+proof that an interval is suitable for pause or keystroke analysis.
+
+Pause, stop, editor/window blur, hidden visibility, pagehide or a new start before
+the previous end emit `compositioninterrupted` for an active tracked composition.
+Its `reason` and `startSequence` mark lost continuity; no synthetic compositionend
+or commit is emitted. Tracking is cleared so unrelated future edits are not
+permanently marked unsupported. Native composing flags and later updates still
+identify exposed continuation. While recording is paused, native composition
+events are ignored along with other native events. Stopping during composition
+retains the textarea's current, possibly provisional text and its interruption.
+
+Browser tests cover real Unicode clipboard/edit/export paths and synthetic
+composition ordering, cancellation, missing starts and lifecycle interruption.
+Synthetic tests validate recorder behavior, not real OS input methods. Chinese,
+Japanese, Korean, dead-key and mobile IME compatibility still needs a selected
+browser/OS/input-method validation matrix. Analysis should treat these boundaries
+locally and never exclude later English editing merely because text contains
+Unicode. No language-specific analysis is implemented in the capture entry.
 
 ## Interaction and lifecycle
 
@@ -83,6 +141,14 @@ Focus state is resolved through the owning document and any enclosing shadow roo
 Pausing preserves the session and suspends native capture and automatic synchronization. Exports retain the last captured text. The `pause` event records interrupted keys; `resume` records the suspension duration in `pausedMs`. Repeated calls are idempotent, and explicit markers remain permitted while paused.
 
 The library does not lock the editor. Resuming after a text change adds a checkpoint with reason `resume`; stopping while paused also reconciles final text. The demo locks its editor during pause and discards the session on reset.
+
+## Demo text counts
+
+Character counts use grapheme clusters and word counts use English-locale
+`Intl.Segmenter` word-like segments: contractions stay together; hyphenated words
+can have multiple segments. These are descriptive counts, not multilingual
+linguistic analysis. Browsers without `Intl.Segmenter` display explicitly labeled
+code-point and whitespace-token counts instead; trace offsets do not change.
 
 ## Storage and analysis
 

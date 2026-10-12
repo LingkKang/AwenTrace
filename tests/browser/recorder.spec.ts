@@ -231,12 +231,13 @@ test('another textarea is outside capture scope', async ({ page }) => {
   expect(trace.events.filter(e => e.kind === 'keydown')).toHaveLength(0);
 });
 
-test('unsupported undo and non-ASCII changes are flagged without losing reconstruction', async ({ page }) => {
+test('unsupported undo retains its patch while Unicode input stays supported', async ({ page }) => {
   await page.keyboard.type('ASCII'); await page.keyboard.press('Control+z');
   await page.keyboard.insertText('中文');
   const trace = await read(page);
   expect(trace.events.some(e => e.kind === 'input' && e.payload.inputType === 'historyUndo' && !e.payload.supported)).toBe(true);
-  expect(trace.events.some(e => e.kind === 'input' && e.payload.issues.includes('non-ascii-out-of-scope'))).toBe(true);
+  expect(trace.events.some(e => e.kind === 'input' && e.payload.data === '中文' && e.payload.supported)).toBe(true);
+  expect(trace.events.some(e => e.kind === 'input' && e.payload.issues.includes('non-ascii-out-of-scope'))).toBe(false);
   expect(await page.evaluate(() => window.awenTest.reconstructText(window.awenTest.recorder.getTrace()))).toBe(trace.finalText);
 });
 
@@ -290,16 +291,16 @@ test('snapshots are detached and subscriber errors cannot interrupt capture', as
   expect(trace.finalText).toBe('safe');
 });
 
-test('duplicate attachment and non-ASCII initial text are rejected', async ({ page }) => {
+test('duplicate attachment is rejected and Unicode initial text is accepted', async ({ page }) => {
   const result = await page.evaluate(() => {
     const el = document.querySelector<HTMLTextAreaElement>('#writer')!;
     let duplicate = false, unicode = false;
     try { window.awenTest.createTrace({ target: el }); } catch { duplicate = true; }
     const other = document.createElement('textarea'); other.value = 'é';
-    try { window.awenTest.createTrace({ target: other }); } catch { unicode = true; }
+    try { window.awenTest.createTrace({ target: other }).stop(); } catch { unicode = true; }
     return { duplicate, unicode };
   });
-  expect(result).toEqual({ duplicate: true, unicode: true });
+  expect(result).toEqual({ duplicate: true, unicode: false });
 });
 
 for (const mode of ['default', 'explicit false'] as const) {

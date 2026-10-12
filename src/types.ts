@@ -21,6 +21,8 @@ export interface EditorState {
   textLength: number;
   revision: number;
   ascii: boolean;
+  /** Observed composition session state; absent in older traces. */
+  composing?: boolean;
   focused: boolean;
   scroll: { left: number; top: number };
 }
@@ -37,6 +39,10 @@ export interface EditEvidence {
   inputType: string;
   data: string | null;
   composing: boolean;
+  /** Browser isComposing flag, or null for checkpoints; absent in older traces. */
+  nativeComposing?: boolean | null;
+  /** Observed compositionstart sequence, or null when unavailable/not applicable. */
+  compositionStartSequence?: number | null;
   beforeInputSequence: number | null;
   selectionBefore: Selection | null;
   selectionAfter: Selection;
@@ -92,6 +98,13 @@ export interface ClipboardEvidence {
   files: { name: string; type: string; size: number; lastModified: number }[];
 }
 
+export interface CompositionEvidence {
+  data: string;
+  selection: Selection;
+  /** Null when capture did not observe the start of this composition. */
+  startSequence: number | null;
+}
+
 export interface Payloads {
   start: { text: string; selection: Selection };
   stop: { text: string; interruptedKeys: string[] };
@@ -101,6 +114,14 @@ export interface Payloads {
   keyup: KeyboardEvidence;
   beforeinput: { inputType: string; data: string | null; composing: boolean; selection: Selection };
   input: EditEvidence;
+  compositionstart: CompositionEvidence;
+  compositionupdate: CompositionEvidence;
+  compositionend: CompositionEvidence;
+  /** Capture lost a composition boundary; this does not imply a commit/cancel. */
+  compositioninterrupted: {
+    startSequence: number | null;
+    reason: 'pause' | 'stop' | 'blur' | 'hidden' | 'pagehide' | 'restart';
+  };
   checkpoint: EditEvidence & { reason: string; text: string };
   mousedown: MouseEvidence;
   mouseup: MouseEvidence;
@@ -158,7 +179,8 @@ export interface TraceHeader {
   startPerformanceMs: number;
   positionUnit: 'utf16-code-unit';
   scope: 'textarea';
-  supportedInput: 'ascii';
+  /** Older recorders emitted ascii; current capture accepts Unicode text. */
+  supportedInput: 'ascii' | 'unicode';
   metadata: Json;
   environment: {
     userAgent: string;

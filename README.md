@@ -1,8 +1,10 @@
 # AwenTrace
 
-A framework-independent TypeScript library for writing activity recording in a browser textarea. Current version captures English/ASCII input and exports browser events with reconstructable text changes.
+A framework-independent TypeScript library for recording English writing in browser textareas, with reconstructable text changes and JSON, JSONL and CSV exports.
 
-## How to Use AwenTracer
+Unicode and composition support on `master` is unreleased; the current npm release is v0.2.0.
+
+## Usage
 
 Install the package in your application:
 
@@ -10,7 +12,7 @@ Install the package in your application:
 npm install awentrace
 ```
 
-Import the ESM entry point in your browser application using a bundler or an import map:
+Import in your browser application using a bundler or an import map:
 
 ```ts
 import { createTrace } from 'awentrace';
@@ -48,7 +50,18 @@ The package provides ESM JavaScript and TypeScript declarations. Attach the reco
 | `toJSON(trace, pretty?)`, `toJSONL(trace)`, `toCSV(trace)` | Export as JSON, JSONL or CSV. |
 | `toJSONLStream(trace, { gzip? })`, `toJSONLBlob(trace, { gzip? })` | Export an existing trace with native gzip by default. |
 
-See [API details and event format](docs/architecture.md#public-api) for callback behavior and trace semantics. This document is also included at `node_modules/awentrace/docs/architecture.md`.
+See [API details and event format](docs/architecture.md#public-api), also included in the npm package.
+
+### Unicode text and composition
+
+Unicode initial text, punctuation, paste and emoji are preserved without
+normalization. Trace positions use UTF-16 offsets; Unicode content does not
+invalidate later English edits.
+
+Browser composition events and interruptions are recorded. Their text changes
+remain reconstructable, with uncertain edits flagged. Full system-IME compatibility
+and multilingual analysis remain outside the current scope.
+See [composition evidence and limits](docs/architecture.md#composition-evidence).
 
 ### JSONL gzip and streaming
 
@@ -60,15 +73,10 @@ recorder.stop();
 await done; // Includes the stop event, JSONL footer and final gzip trailer.
 ```
 
-Compression uses the browser's native `CompressionStream('gzip')` with no added
-dependencies. Set `gzip: false` when creating the recorder to get UTF-8 `.jsonl`
-instead. Existing `toJSON`, `toJSONL` and `toCSV` functions still return plain text.
-The option changes exports, not captured event data or the trace schema.
-
-Native compression can buffer output and does not expose manual flush or compression
-level settings. Streaming does not promise immediate output for every event. If
-`CompressionStream` is unavailable, gzip exports fail explicitly; recording and
-plain exports remain available. See [stream lifecycle and memory behavior](docs/architecture.md#jsonl-compression-and-streaming).
+Gzip uses native `CompressionStream` with no added dependencies and may buffer
+output. Set `gzip: false` for plain JSONL, including browsers without native gzip.
+`toJSON`, `toJSONL` and `toCSV` always return plain text.
+See [stream lifecycle and browser requirements](docs/architecture.md#jsonl-compression-and-streaming).
 
 ## What AwenTrace Records
 
@@ -76,6 +84,7 @@ plain exports remain available. See [stream lifecycle and memory behavior](docs/
 | --- | --- |
 | Keyboard | Key down/up, logical key, physical code, modifiers and repeat |
 | Text input | Before/input events, insert/delete/replace changes and revisions |
+| Composition | Browser-exposed start, updates, end and interrupted boundaries |
 | Selection | Caret position, selection range and direction |
 | Mouse and pointer | Clicks, presses/releases, coordinates, pointer properties and optional movement |
 | Clipboard | Copy/cut/paste, available text, MIME types and file metadata |
@@ -95,28 +104,24 @@ docker compose exec dev npm run build
 docker compose exec dev npm run test:pages
 ```
 
-Open [localhost:5174](http://localhost:5174/) for the demo. Source files are mounted into the `awentrace-dev` container; dependencies and Chromium are installed there.
-
-`npm test` runs TypeScript, unit, browser and installed-package tests. Use `npm run test:package` to check packing, installation, declarations and browser use separately. Library browser tests use a minimal textarea fixture separate from the demo. `npm run test:pages` builds the static demo and checks both project-subpath and domain-root hosting.
-
-Use `docker compose stop` / `start` to stop or restart development, and `docker compose down` to remove the container. See [development layout](docs/architecture.md#development-layout) for source and test locations.
+Open [localhost:5174](http://localhost:5174/) for the demo. `npm test` checks types,
+unit behavior, Chromium and the installed package; `test:pages` verifies static
+hosting at root and project-subpath URLs. See [development layout](docs/architecture.md#development-layout).
 
 ## Hosted Demo
 
-A dev build demo of AwenTrace is hosted at [awentrace.lingkang.dev](https://awentrace.lingkang.dev/).
-
-The demo supports start, pause, resume, reset, text history playback and downloads.
-Its JSONL download uses gzip (`.jsonl.gz`); JSON and CSV downloads remain plain text.
-Recordings stay in page memory, so download them before resetting or leaving.
+[awentrace.lingkang.dev](https://awentrace.lingkang.dev/) provides session controls,
+text history and downloads. Recordings stay in page memory; download before resetting or leaving.
+Counts use grapheme clusters and English word segmentation, with labeled fallbacks
+on older browsers. See [counting rules](docs/architecture.md#demo-text-counts).
 
 ## TODO
 
 The following items are not yet supported or fully validated:
 
-- **Browsers:** validate Firefox, Safari/WebKit and behavior across operating systems.
-- **Languages and Unicode:** support non-ASCII text, IMEs/composition, grapheme-aware positions and language-aware word segmentation.
-- **Editing workflows:** support and test undo/redo, drag-and-drop, autocorrection, rich text and mobile input.
+- **Compatibility:** validate more browsers, operating systems, real system IMEs and mobile input.
+- **Editing workflows:** support and test undo/redo, drag-and-drop, native autocorrection and rich text.
 - **Measurement:** evaluate timing accuracy, interrupted key sequences, clipboard/menu actions and ambiguous edit locations across browsers.
 - **Persistence:** add durable storage, crash/reload recovery and long-session performance checks; explore server synchronization and cross-tab sessions.
-- **Analysis:** add writing summaries, pause and typing-burst analysis, revision tracking and fluency charts.
+- **Analysis:** add writing summaries, pause/burst analysis, revision tracking and language-specific segmentation.
 - **Interoperability:** explore IDFX export and compatibility with other writing-process tools.

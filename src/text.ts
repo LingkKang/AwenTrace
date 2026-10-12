@@ -2,6 +2,12 @@ import type { Selection, TextDelta, Trace } from './types.js';
 
 export const isAscii = (text: string): boolean => /^[\x00-\x7f]*$/.test(text);
 
+/** Whether a UTF-16 offset cuts a valid surrogate pair in half. */
+function splitsPair(text: string, offset: number): boolean {
+  const left = text.charCodeAt(offset - 1), right = text.charCodeAt(offset);
+  return left >= 0xd800 && left <= 0xdbff && right >= 0xdc00 && right <= 0xdfff;
+}
+
 /** Prefer the observed selection to disambiguate edits inside repeated text. */
 export function textDelta(before: string, after: string, selection: Selection | null,
   afterSelection: Selection, inputType: string): TextDelta | null {
@@ -16,7 +22,9 @@ export function textDelta(before: string, after: string, selection: Selection | 
     const insertedLength = after.length - before.length + end - start;
     if (start >= 0 && end >= start && end <= before.length && insertedLength >= 0 &&
       before.slice(0, start) === after.slice(0, start) &&
-      before.slice(end) === after.slice(start + insertedLength)) {
+      before.slice(end) === after.slice(start + insertedLength) &&
+      !splitsPair(before, start) && !splitsPair(before, end) &&
+      !splitsPair(after, start) && !splitsPair(after, start + insertedLength)) {
       return { start, removed: before.slice(start, end),
         inserted: after.slice(start, start + insertedLength), locationBasis: 'selection' };
     }
@@ -28,6 +36,10 @@ export function textDelta(before: string, after: string, selection: Selection | 
   while (endBefore > start && endAfter > start && before[endBefore - 1] === after[endAfter - 1]) {
     endBefore--; endAfter--;
   }
+  // Expand only the inferred replacement, never the observed selection or source
+  // text. Grapheme clusters may still be edited in parts by the browser.
+  if (splitsPair(before, start) || splitsPair(after, start)) start--;
+  if (splitsPair(before, endBefore) || splitsPair(after, endAfter)) { endBefore++; endAfter++; }
   return { start, removed: before.slice(start, endBefore), inserted: after.slice(start, endAfter),
     locationBasis: 'text-difference' };
 }

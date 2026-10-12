@@ -4,7 +4,7 @@ import type { ClipboardEvidence, EditEvidence, EventKind, Json, Modifiers, Mouse
   Payloads, Recorder, Selection, Trace, TraceEvent, TraceHeader, TraceOptions } from './types.js';
 
 const owners = new WeakMap<HTMLTextAreaElement, Recorder>();
-const supportedTypes = new Set(['insertText', 'insertLineBreak', 'insertFromPaste',
+const supportedTypes = new Set(['insertText', 'insertLineBreak', 'insertFromPaste', 'insertReplacementText',
   'deleteContentBackward', 'deleteContentForward', 'deleteWordBackward', 'deleteWordForward',
   'deleteSoftLineBackward', 'deleteSoftLineForward', 'deleteHardLineBackward',
   'deleteHardLineForward', 'deleteEntireSoftLine', 'deleteByCut']);
@@ -50,7 +50,6 @@ export function createTrace(options: TraceOptions): Recorder {
   const win = doc.defaultView;
   if (!win) throw new Error('The textarea must belong to a browser window');
   if (owners.has(target)) throw new Error('This textarea already has an active AwenTrace recorder');
-  if (!isAscii(target.value)) throw new Error('AwenTrace v0.1 requires ASCII initial text');
   const perf = win.performance;
   const started = perf.now();
   const sessionId = options.sessionId ?? sessionUUID(win.crypto);
@@ -60,7 +59,7 @@ export function createTrace(options: TraceOptions): Recorder {
   const viewport = () => ({ width: win.innerWidth, height: win.innerHeight, pixelRatio: win.devicePixelRatio });
   const header: TraceHeader = freeze({ schema: 'awentrace/0.1', recorderVersion: '0.2.0', sessionId,
     startedAt: new Date().toISOString(), performanceTimeOrigin: perf.timeOrigin,
-    startPerformanceMs: started, positionUnit: 'utf16-code-unit', scope: 'textarea', supportedInput: 'ascii',
+    startPerformanceMs: started, positionUnit: 'utf16-code-unit', scope: 'textarea', supportedInput: 'unicode',
     metadata: JSON.parse(JSON.stringify(options.metadata ?? null)) as Json,
     environment: { userAgent: win.navigator.userAgent, language: win.navigator.language,
       languages: [...win.navigator.languages], platform: win.navigator.platform,
@@ -88,12 +87,15 @@ export function createTrace(options: TraceOptions): Recorder {
   let stopping = false;
   let pending: { sequence: number; text: string; selection: Selection; inputType: string; native: InputEvent } | null = null;
   let pendingTimer: number | undefined;
+  let composition: { startSequence: number | null } | null = null;
+  let compositionTail: { startSequence: number | null } | null = null;
+  let compositionTimer: number | undefined;
 
   const reportError = (error: unknown) => {
     try { if (options.onError) options.onError(error); else win.console.error('AwenTrace subscriber error', error); }
     catch { /* A host error handler must not interrupt input capture. */ }
   };
-  function emit<K extends EventKind>(kind: K, payload: Payloads[K], native?: Event): number {
+  function emit<K extends EventKind>(kind: K, payload: Payloads[K], native?: Event, deferDelivery = false): number {
     if (stopped || (paused && native)) return events.length;
     const sequence = events.length + 1;
     const event = freeze({ id: `${sessionId}:${sequence}`, sessionId, sequence, kind, payload,
@@ -101,6 +103,7 @@ export function createTrace(options: TraceOptions): Recorder {
       domTimeStamp: native?.timeStamp ?? null, trusted: native?.isTrusted ?? null,
       defaultPrevented: native?.defaultPrevented ?? null,
       state: { selection: selection(), textLength: target.value.length, revision, ascii: isAscii(target.value),
+        composing: composition !== null,
         focused: hasEditorFocus(target), scroll: { left: target.scrollLeft, top: target.scrollTop } },
     }) as TraceEvent;
     events.push(event);
@@ -109,7 +112,7 @@ export function createTrace(options: TraceOptions): Recorder {
     notifications.push(event);
     // A subscriber may add a marker. Every subscriber must still see the original
     // event before that marker, matching the trace's sequence order.
-    if (!delivering) {
+    if (!delivering && !deferDelivery) {
       delivering = true;
       try {
         while (notifications.length) {
@@ -135,6 +138,17 @@ export function createTrace(options: TraceOptions): Recorder {
     altGraph: event.getModifierState('AltGraph') });
   const interruptKeys = () => { const keys = [...pressed.keys()]; pressed.clear(); return keys; };
 
+  const clearCompositionTail = () => {
+    win.clearTimeout(compositionTimer);
+    compositionTail = null;
+  };
+  function interruptComposition(reason: Payloads['compositioninterrupted']['reason'], deferDelivery = false) {
+    clearCompositionTail();
+    const interrupted = composition;
+    composition = null;
+    if (interrupted) emit('compositioninterrupted', { startSequence: interrupted.startSequence, reason }, undefined, deferDelivery);
+  }
+
   function select(trigger: string, native?: Event) {
     if (stopped || paused) return;
     const current = selection();
@@ -144,8 +158,10 @@ export function createTrace(options: TraceOptions): Recorder {
     emit('selection', { previous, current, trigger }, native);
   }
 
-  function editEvidence(inputType: string, data: string | null, composing: boolean,
+  function editEvidence(inputType: string, data: string | null, nativeComposing: boolean | null,
     observed: typeof pending): EditEvidence {
+    const composing = nativeComposing === true || composition !== null || /composition/i.test(inputType);
+    const compositionStartSequence = (composition ?? compositionTail)?.startSequence ?? null;
     const current = selection();
     const selectionBefore = observed?.selection ?? null;
     const delta = textDelta(text, target.value, selectionBefore, current, inputType);
@@ -153,21 +169,22 @@ export function createTrace(options: TraceOptions): Recorder {
     if (!observed) issues.push('beforeinput-not-observed');
     if (!supportedTypes.has(inputType)) issues.push('unsupported-input-type');
     if (composing) issues.push('composition-out-of-scope');
-    if (!isAscii(text) || !isAscii(target.value)) issues.push('non-ascii-out-of-scope');
+    if (compositionTail) issues.push('composition-boundary');
     if (delta?.locationBasis === 'text-difference') issues.push('edit-location-inferred');
     const fromRevision = revision;
     if (delta) revision++;
     text = target.value;
-    return { inputType, data, composing, beforeInputSequence: observed?.sequence ?? null,
+    return { inputType, data, composing, nativeComposing, compositionStartSequence,
+      beforeInputSequence: observed?.sequence ?? null,
       selectionBefore, selectionAfter: current, fromRevision, toRevision: revision, delta,
-      supported: supportedTypes.has(inputType) && !composing && !issues.includes('non-ascii-out-of-scope'), issues };
+      supported: supportedTypes.has(inputType) && !composing && !compositionTail, issues };
   }
 
   function sync(reason = 'host-request') {
     if (stopped || paused) return;
     if (target.value !== text) {
       pending = null;
-      const evidence = editEvidence('external', null, false, null);
+      const evidence = editEvidence('external', null, null, null);
       emit('checkpoint', { ...evidence, reason, text });
     }
     select('sync');
@@ -189,6 +206,8 @@ export function createTrace(options: TraceOptions): Recorder {
       pending = null;
       pointers.clear();
       mouseButtons.clear();
+      // Record both boundaries before callbacks can resume or stop the session.
+      interruptComposition('pause', true);
       emit('pause', { interruptedKeys: interruptKeys() });
     },
     resume() {
@@ -230,6 +249,7 @@ export function createTrace(options: TraceOptions): Recorder {
         stopping = true;
         paused = false;
         sync('stop');
+        interruptComposition('stop');
         win.clearTimeout(pendingTimer);
         pending = null;
         for (const remove of removers) remove();
@@ -241,8 +261,37 @@ export function createTrace(options: TraceOptions): Recorder {
   };
   owners.set(target, recorder);
 
+  listen<CompositionEvent>(target, 'compositionstart', event => {
+    sync('compositionstart');
+    interruptComposition('restart');
+    if (stopped || paused) return;
+    pending = null;
+    composition = { startSequence: events.length + 1 };
+    emit('compositionstart', { data: event.data, selection: selection(), startSequence: composition.startSequence }, event);
+  });
+  listen<CompositionEvent>(target, 'compositionupdate', event => {
+    // Update events can precede the DOM mutation. Only input/checkpoints own edits.
+    composition ??= { startSequence: null };
+    emit('compositionupdate', { data: event.data, selection: selection(), startSequence: composition.startSequence }, event);
+  });
+  listen<CompositionEvent>(target, 'compositionend', event => {
+    clearCompositionTail();
+    const ended = composition ?? { startSequence: null };
+    composition = null;
+    compositionTail = ended;
+    // Some browsers deliver the final input after compositionend. Keep the
+    // boundary for this task and reconcile only if no input reported the edit.
+    compositionTimer = win.setTimeout(() => {
+      if (compositionTail !== ended) return;
+      sync('compositionend');
+      if (compositionTail === ended) clearCompositionTail();
+    }, 0);
+    emit('compositionend', { data: event.data, selection: selection(), startSequence: ended.startSequence }, event);
+  });
+
   listen<KeyboardEvent>(target, 'keydown', event => {
     sync('keydown');
+    if (!event.isComposing && !composition) clearCompositionTail();
     const keyId = `${event.code || event.key}:${event.location}`;
     const first = pressed.get(keyId) ?? events.length + 1;
     pressed.set(keyId, first);
@@ -344,19 +393,23 @@ export function createTrace(options: TraceOptions): Recorder {
     listen(surface, 'blur', event => {
       if (event.target !== surface) return;
       sync('blur'); pending = null; pointers.clear(); mouseButtons.clear();
+      interruptComposition('blur');
       emit('blur', { scope, interruptedKeys: interruptKeys() }, event);
     });
   }
   listen(doc, 'visibilitychange', event => {
     sync('visibility');
     const keys = doc.visibilityState === 'hidden' ? interruptKeys() : [];
-    if (doc.visibilityState === 'hidden') { pointers.clear(); mouseButtons.clear(); }
+    if (doc.visibilityState === 'hidden') {
+      pointers.clear(); mouseButtons.clear(); interruptComposition('hidden');
+    }
     emit('visibility', { state: doc.visibilityState, interruptedKeys: keys }, event);
   });
   for (const type of ['online', 'offline']) listen(win, type, event => emit('online', { online: win.navigator.onLine }, event));
   listen(win, 'resize', event => emit('resize', viewport(), event));
   listen<PageTransitionEvent>(win, 'pagehide', event => {
-    sync('pagehide'); emit('pagehide', { persisted: event.persisted, interruptedKeys: interruptKeys() }, event);
+    sync('pagehide'); interruptComposition('pagehide');
+    emit('pagehide', { persisted: event.persisted, interruptedKeys: interruptKeys() }, event);
     pointers.clear(); mouseButtons.clear();
   });
   listen<PageTransitionEvent>(win, 'pageshow', event => { sync('pageshow'); emit('pageshow', { persisted: event.persisted }, event); });
