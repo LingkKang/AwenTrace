@@ -58,7 +58,7 @@ export function createTrace(options: TraceOptions): Recorder {
   const selection = (): Selection => ({ start: target.selectionStart, end: target.selectionEnd,
     direction: target.selectionDirection });
   const viewport = () => ({ width: win.innerWidth, height: win.innerHeight, pixelRatio: win.devicePixelRatio });
-  const header: TraceHeader = freeze({ schema: 'awentrace/0.1', recorderVersion: '0.1.0', sessionId,
+  const header: TraceHeader = freeze({ schema: 'awentrace/0.1', recorderVersion: '0.2.0', sessionId,
     startedAt: new Date().toISOString(), performanceTimeOrigin: perf.timeOrigin,
     startPerformanceMs: started, positionUnit: 'utf16-code-unit', scope: 'textarea', supportedInput: 'ascii',
     metadata: JSON.parse(JSON.stringify(options.metadata ?? null)) as Json,

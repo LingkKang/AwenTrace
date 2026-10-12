@@ -1,13 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.2.0
 
-- Add dependency-free JSONL gzip exports using the browser's native `CompressionStream`, enabled by default through `createTrace({ gzip: true })`; `gzip: false` selects plain JSONL.
-- Add `recorder.exportJSONL()` for detached snapshot Blobs and `recorder.streamJSONL()` for existing and future events through stop, with pull-based consumption and cancellation cleanup.
-- Add `toJSONLBlob()` and `toJSONLStream()` for supplied snapshots. Existing JSON, JSONL and CSV string exports and the trace schema remain unchanged.
-- Change the demo's JSONL download to `.jsonl.gz`, with export error feedback and protection against downloading a discarded session after reset.
-- Order the demo download buttons as CSV, JSON and JSONL.GZ.
-- Document native compression requirements, buffering and lifecycle behavior; verify gzip interoperability, stream cancellation, recorder integration, demo downloads and installed-package use.
+- Add dependency-free JSONL gzip exports using native `CompressionStream`, enabled by default; `gzip: false` selects plain JSONL.
+- Add snapshot and streaming exports with `recorder.exportJSONL()`, `recorder.streamJSONL()`, `toJSONLBlob()` and `toJSONLStream()`, including stream cancellation cleanup.
+- Update demo downloads to CSV, JSON and JSONL.GZ, with export error feedback and reset protection.
+- Document compression and streaming behavior and expand browser and package tests; existing string exports and the trace schema remain unchanged.
 
 ## 0.1.0
 
