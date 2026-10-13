@@ -2,8 +2,6 @@
 
 A framework-independent TypeScript library for recording English writing in browser textareas, with reconstructable text changes and JSON, JSONL and CSV exports.
 
-Unicode and composition support on `master` is unreleased; the current npm release is v0.2.0.
-
 ## Usage
 
 Install the package in your application:
@@ -29,7 +27,9 @@ recorder.stop();
 const blob = await recorder.exportJSONL(); // application/gzip; save as .jsonl.gz
 ```
 
-The package provides ESM JavaScript and TypeScript declarations. Attach the recorder after the textarea mounts and call `stop()` before removing it. After changing `textarea.value` in application code, call `sync()`.
+The package provides ESM JavaScript and TypeScript declarations.
+Attach the recorder after the textarea mounts and call `stop()` before removing it.
+After changing `textarea.value` in application code, call `sync()`.
 
 ### API
 
@@ -54,13 +54,12 @@ See [API details and event format](docs/architecture.md#public-api), also includ
 
 ### Unicode text and composition
 
-Unicode initial text, punctuation, paste and emoji are preserved without
-normalization. Trace positions use UTF-16 offsets; Unicode content does not
-invalidate later English edits.
+Unicode text, including Chinese, punctuation and emoji, can be recorded and reconstructed without normalization, whether present initially, typed or pasted.
+Trace positions use UTF-16 offsets; Unicode content does not invalidate later English edits.
 
-Browser composition events and interruptions are recorded. Their text changes
-remain reconstructable, with uncertain edits flagged. Full system-IME compatibility
-and multilingual analysis remain outside the current scope.
+Browser-exposed composition events and interruptions are recorded.
+Their text changes remain reconstructable, with uncertain edits flagged.
+Capture is limited to what the browser exposes; the measurement scope remains English writing.
 See [composition evidence and limits](docs/architecture.md#composition-evidence).
 
 ### JSONL gzip and streaming
@@ -73,8 +72,8 @@ recorder.stop();
 await done; // Includes the stop event, JSONL footer and final gzip trailer.
 ```
 
-Gzip uses native `CompressionStream` with no added dependencies and may buffer
-output. Set `gzip: false` for plain JSONL, including browsers without native gzip.
+Gzip uses native `CompressionStream` with no added dependencies and may buffer output.
+Set `gzip: false` for plain JSONL, including browsers without native gzip.
 `toJSON`, `toJSONL` and `toCSV` always return plain text.
 See [stream lifecycle and browser requirements](docs/architecture.md#jsonl-compression-and-streaming).
 
@@ -93,7 +92,8 @@ See [stream lifecycle and browser requirements](docs/architecture.md#jsonl-compr
 | Session context | Browser, viewport, editor settings, initial and final text |
 | Application markers | Custom labels and JSON data |
 
-Capture is scoped to the supplied textarea and its relevant page context. Mouse/pointer movement is disabled by default and in the demo; set `capturePointerMoves: true` to enable it.
+Capture is scoped to the supplied textarea and its relevant page context.
+Mouse/pointer movement is disabled by default and in the demo; set `capturePointerMoves: true` to enable it.
 
 ## Development with Docker
 
@@ -104,22 +104,22 @@ docker compose exec dev npm run build
 docker compose exec dev npm run test:pages
 ```
 
-Open [localhost:5174](http://localhost:5174/) for the demo. `npm test` checks types,
-unit behavior, Chromium and the installed package; `test:pages` verifies static
-hosting at root and project-subpath URLs. See [development layout](docs/architecture.md#development-layout).
+Open [localhost:5174](http://localhost:5174/) for the demo.
+`npm test` checks types, unit behavior, Chromium and the installed package; `test:pages` verifies static hosting at root and project-subpath URLs.
+See [development layout](docs/architecture.md#development-layout).
 
 ## Hosted Demo
 
-[awentrace.lingkang.dev](https://awentrace.lingkang.dev/) provides session controls,
-text history and downloads. Recordings stay in page memory; download before resetting or leaving.
-Counts use grapheme clusters and English word segmentation, with labeled fallbacks
-on older browsers. See [counting rules](docs/architecture.md#demo-text-counts).
+[awentrace.lingkang.dev](https://awentrace.lingkang.dev/) provides session controls, text history and downloads.
+Recordings stay in page memory; download before resetting or leaving.
+Counts use grapheme clusters and English word segmentation, with labeled fallbacks on older browsers.
+See [counting rules](docs/architecture.md#demo-text-counts).
 
 ## TODO
 
 The following items are not yet supported or fully validated:
 
-- **Compatibility:** validate more browsers, operating systems, real system IMEs and mobile input.
+- **Compatibility:** validate more browsers, operating systems and mobile input.
 - **Editing workflows:** support and test undo/redo, drag-and-drop, native autocorrection and rich text.
 - **Measurement:** evaluate timing accuracy, interrupted key sequences, clipboard/menu actions and ambiguous edit locations across browsers.
 - **Persistence:** add durable storage, crash/reload recovery and long-session performance checks; explore server synchronization and cross-tab sessions.

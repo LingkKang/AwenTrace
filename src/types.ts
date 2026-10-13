@@ -172,7 +172,7 @@ export type TraceEvent<K extends EventKind = EventKind> = {
 
 export interface TraceHeader {
   schema: 'awentrace/0.1';
-  recorderVersion: '0.2.0';
+  recorderVersion: '0.2.1';
   sessionId: string;
   startedAt: string;
   performanceTimeOrigin: number;

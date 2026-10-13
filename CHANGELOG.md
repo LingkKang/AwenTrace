@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.2.1
 
 - Support Unicode initial text, edits and exports with safe surrogate-pair boundaries and unchanged UTF-16 positions.
 - Record composition events and interruptions, flagging uncertain edits without invalidating later English input.
